@@ -14,11 +14,9 @@ import Registration from './pages/register'
 import ProfilePage from './pages/profile'
 import Notification from './components/notification'
 import MagsuriTayo from './pages/magsuriTayo'
+import Sidebar from './components/SideBar'
 
-// Routes that should never show NavBar/Footer
 const CHROME_HIDDEN_ROUTES = new Set(['/login', '/register', '/magsuri'])
-
-// Routes that require authentication
 const PROTECTED_ROUTES = new Set(['/', '/mga-libro', '/pagsusuri', '/profile', '/magsuri'])
 
 function RequireAuth({ user, children }) {
@@ -61,88 +59,93 @@ function Layout({ notif, setNotif, user }) {
         />
       )}
 
-      <Routes>
-        {/* ── Public / auth routes ─────────────────────────── */}
-        <Route
-          path="/login"
-          element={
-            <RedirectIfAuthed user={user}>
-              <Login onNotify={setNotif} />
-            </RedirectIfAuthed>
-          }
-        />
-        <Route
-          path="/register"
-          element={
-            <RedirectIfAuthed user={user}>
-              <Registration onNotify={setNotif} />
-            </RedirectIfAuthed>
-          }
-        />
+      {!hideChrome && <Sidebar />}
 
-        {/* ── Protected routes ─────────────────────────────── */}
-        <Route
-          path="/"
-          element={
-            <RequireAuth user={user}>
-              <HomePage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/mga-libro"
-          element={
-            <RequireAuth user={user}>
-              <MgaLibro />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/libro/:id"
-          element={
-            <RequireAuth user={user}>
-              <BookPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/excerpts"
-          element={
-            <RequireAuth user={user}>
-              <ExcerptsPage />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/pagsusuri"
-          element={
-            <RequireAuth user={user}>
-              <Pagsusuri />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/profile"
-          element={
-            <RequireAuth user={user}>
-              <ProfilePage onNotify={setNotif} />
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/magsuri"
-          element={
-            <RequireAuth user={user}>
-              <MagsuriTayo />
-            </RequireAuth>
-          }
-        />
+      {/* main is offset by sidebar width via CSS variable — collapses to 0 on mobile */}
+      <main className={hideChrome ? '' : 'with-sidebar'}>
+        <Routes>
+          {/* ── Public / auth routes ─────────────────────────── */}
+          <Route
+            path="/login"
+            element={
+              <RedirectIfAuthed user={user}>
+                <Login onNotify={setNotif} />
+              </RedirectIfAuthed>
+            }
+          />
+          <Route
+            path="/register"
+            element={
+              <RedirectIfAuthed user={user}>
+                <Registration onNotify={setNotif} />
+              </RedirectIfAuthed>
+            }
+          />
 
-        {/* ── Catch-all ────────────────────────────────────── */}
-        <Route path="*" element={<Navigate to={user ? '/' : '/login'} replace />} />
-      </Routes>
+          {/* ── Protected routes ─────────────────────────────── */}
+          <Route
+            path="/"
+            element={
+              <RequireAuth user={user}>
+                <HomePage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/mga-libro"
+            element={
+              <RequireAuth user={user}>
+                <MgaLibro />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/libro/:id"
+            element={
+              <RequireAuth user={user}>
+                <BookPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/excerpts"
+            element={
+              <RequireAuth user={user}>
+                <ExcerptsPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/pagsusuri"
+            element={
+              <RequireAuth user={user}>
+                <Pagsusuri />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <RequireAuth user={user}>
+                <ProfilePage onNotify={setNotif} />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/magsuri"
+            element={
+              <RequireAuth user={user}>
+                <MagsuriTayo />
+              </RequireAuth>
+            }
+          />
 
-      {!hideChrome && <Footer />}
+          {/* ── Catch-all ────────────────────────────────────── */}
+          <Route path="*" element={<Navigate to={user ? '/' : '/login'} replace />} />
+        </Routes>
+      </main>
+
+      {!hideChrome && <Footer className="with-sidebar" />}
     </>
   )
 }
@@ -160,7 +163,6 @@ function App() {
     return () => unsubscribe()
   }, [])
 
-  // Hold render until Firebase resolves — prevents flash of wrong route
   if (!authReady) return <div style={{ minHeight: '100vh', background: '#0d0d0d' }} />
 
   return (
