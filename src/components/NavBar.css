@@ -429,6 +429,89 @@
   padding-left: 2rem;
 }
 
+
+/* ── Pagsusulit Tooltip Button ─────────────────────────── */
+.pagsusulit-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.pagsusulit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background: rgba(245, 197, 24, 0.06);
+  border: 1px solid var(--border-sub);
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.2s, border-color 0.2s, transform 0.2s;
+}
+
+.pagsusulit-btn:hover {
+  background: var(--gold-dim);
+  border-color: rgba(245, 197, 24, 0.4);
+  transform: scale(1.08);
+}
+
+.pagsusulit-icon {
+  width: 18px;
+  height: 18px;
+  opacity: 0.7;
+  filter: brightness(0) saturate(100%) invert(85%) sepia(40%)
+          saturate(600%) hue-rotate(5deg) brightness(105%);
+  transition: opacity 0.2s;
+}
+
+.pagsusulit-btn:hover .pagsusulit-icon { opacity: 1; }
+
+.pagsusulit-tooltip {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: #1a1a0f;
+  border: 1px solid rgba(245, 197, 24, 0.3);
+  border-radius: 8px;
+  padding: 0.55rem 0.85rem;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5), 0 0 12px rgba(245,197,24,0.08);
+  z-index: 200;
+}
+
+.pagsusulit-tooltip::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 8px;
+  height: 8px;
+  background: #1a1a0f;
+  border-left: 1px solid rgba(245, 197, 24, 0.3);
+  border-top: 1px solid rgba(245, 197, 24, 0.3);
+}
+
+.pagsusulit-wrapper:hover .pagsusulit-tooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.pagsusulit-tooltip-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
 /* ── Responsive ───────────────────────────────────────────── */
 @media (max-width: 900px) {
   .navbar-search      { display: none; }

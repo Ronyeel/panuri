@@ -65,6 +65,7 @@ export default function Registration({ onNotify }) {
       await setDoc(doc(db, 'users', user.uid), {
         username: form.username.toLowerCase(),
         email: form.email,
+        role: 'user',           // ← all new registrations default to 'user'
         createdAt: new Date(),
       })
       onNotify?.({ message: `Maligayang pagdating, ${form.username}! Matagumpay kang nagrehistro.`, type: 'success' })
@@ -93,7 +94,6 @@ export default function Registration({ onNotify }) {
   return (
     <div className="auth-root">
       <div className={`auth-card${shake ? ' auth-card--shake' : ''}`}>
-        {/* No back button — user must authenticate first */}
         <div className="auth-brand">
           <div className="auth-brand-name">E-PANISURI</div>
           <div className="auth-logo-box">LOGO HERE</div>

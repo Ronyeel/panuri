@@ -23,6 +23,24 @@ function UserIcon() {
   )
 }
 
+/* NEW: Pagsusulit Button */
+function PagsusulitButton({ onClick }) {
+  return (
+    <div className="pagsusulit-wrapper">
+      <button
+        className="pagsusulit-btn"
+        onClick={onClick}
+        aria-label="Pagsusulit"
+      >
+        <img src="/quiz.svg" alt="Pagsusulit" className="pagsusulit-icon" />
+      </button>
+      <div className="pagsusulit-tooltip">
+        <span className="pagsusulit-tooltip-title">Pagsusulit</span>
+      </div>
+    </div>
+  )
+}
+
 function MagsuriButton({ onClick }) {
   return (
     <div className="magsuri-wrapper">
@@ -65,7 +83,7 @@ export default function NavBar({ isLoggedIn = false, username = '' }) {
             <span className="logo-line2">LOGO</span>
           </a>
 
-          {/* Search bar — desktop + mobile toggle + mobile panel */}
+          {/* Search bar */}
           <SearchBar
             mobileOpen={searchOpen}
             onMobileToggle={() => setSearchOpen(v => !v)}
@@ -73,10 +91,12 @@ export default function NavBar({ isLoggedIn = false, username = '' }) {
 
           {/* Actions */}
           <div className="navbar-actions">
-            {/* (mobile search toggle button is rendered inside SearchBar) */}
-
             <div className="navbar-divider" />
 
+            {/* NEW: Pagsusulit (BEFORE Magsuri) */}
+            <PagsusulitButton onClick={() => navigate('/pagsusulit')} />
+
+            {/* Existing */}
             <MagsuriButton onClick={() => navigate('/magsuri')} />
 
             <button
@@ -88,7 +108,7 @@ export default function NavBar({ isLoggedIn = false, username = '' }) {
               <span className="navbar-profile-label">{displayName}</span>
             </button>
 
-            {/* Hamburger — mobile only */}
+            {/* Hamburger */}
             <button
               className={`navbar-burger ${menuOpen ? 'open' : ''}`}
               onClick={() => setMenuOpen(v => !v)}
@@ -100,7 +120,7 @@ export default function NavBar({ isLoggedIn = false, username = '' }) {
           </div>
         </div>
 
-        {/* Mobile nav drawer */}
+        {/* Mobile nav */}
         <div className={`navbar-mobile ${menuOpen ? 'navbar-mobile--open' : ''}`}>
           {navLinks.map(link => (
             <NavLink
@@ -114,6 +134,17 @@ export default function NavBar({ isLoggedIn = false, username = '' }) {
               {link.label}
             </NavLink>
           ))}
+
+          {/* Add mobile access too */}
+          <NavLink
+            to="/pagsusulit"
+            className={({ isActive }) =>
+              `navbar-mobile-link${isActive ? ' navbar-link--active' : ''}`
+            }
+            onClick={close}
+          >
+            Pagsusulit
+          </NavLink>
 
           <NavLink
             to="/magsuri"

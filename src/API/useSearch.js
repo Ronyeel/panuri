@@ -47,7 +47,6 @@ async function searchSupabase(query) {
       supabase
         .from('excerpts')
         .select('id, title, bookTitle')
-        // ✅ FIXED: only real text fields
         .or(`title.ilike.${pattern},bookTitle.ilike.${pattern}`)
         .limit(MAX_RESULTS),
     ])
@@ -66,9 +65,9 @@ async function searchSupabase(query) {
 
     // ── MAP EXCERPTS ───────────────────────
     const excerpts = (excerptsRes.data ?? []).map(item => ({
-      id:       `excerpt-${item.id}`,
+      id:       `excerpts-${item.id}`,
       title:    item.title,
-      category: 'Sipi',
+      category: 'Excerpt',
 
       // IMPORTANT: correct route
       path:     `/excerpts`,

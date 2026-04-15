@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { signInWithEmailAndPassword } from 'firebase/auth'
-import { auth } from '../API/firebase'
+import { doc, getDoc } from 'firebase/firestore'
+import { auth, db } from '../API/firebase'
 import './auth.css'
 
 function firebaseError(code) {
@@ -53,11 +54,22 @@ export default function Login({ onNotify }) {
     setLoading(true)
     try {
       const { user } = await signInWithEmailAndPassword(auth, form.email, form.password)
+
+      // Fetch role from Firestore
+      const userDoc = await getDoc(doc(db, 'users', user.uid))
+      const role = userDoc.data()?.role ?? 'user'
+
       onNotify?.({
         message: `Maligayang pagbabalik, ${user.displayName || 'Mambabasa'}! Matagumpay kang naka-login.`,
         type: 'success'
       })
-      navigate('/', { replace: true })
+
+      // Redirect based on role
+      if (role === 'admin') {
+        navigate('/admin', { replace: true })
+      } else {
+        navigate('/', { replace: true })
+      }
     } catch (err) {
       setErrors({ password: firebaseError(err.code) })
       triggerShake()
@@ -69,7 +81,6 @@ export default function Login({ onNotify }) {
   return (
     <div className="auth-root">
       <div className={`auth-card${shake ? ' auth-card--shake' : ''}`}>
-        {/* No back button — user must authenticate first */}
         <div className="auth-brand">
           <div className="auth-brand-name">E-PANISURI</div>
           <div className="auth-logo-box">LOGO HERE</div>
