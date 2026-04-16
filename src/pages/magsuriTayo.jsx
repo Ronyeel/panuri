@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  E-Panisuri — AI Document Summarizer (Enhanced)
+//  E-Panisuri — AI Document Summarizer (Modern Redesign)
 //  API: Groq (llama-3.3-70b-versatile)
 //  Key loaded from env — no user input required
 //  Features:
@@ -11,9 +11,10 @@
 //    • Empty / image-only document detection
 //    • All file validation edge cases handled
 //    • Daily rate limit (localStorage)
+//    • Back button support
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import * as mammoth from "mammoth";
 import "./magsuriTayo.css";
 
@@ -24,14 +25,10 @@ import "./magsuriTayo.css";
 const GROQ_API_KEY   = import.meta.env.VITE_GROQ_API_KEY;
 const GROQ_MODEL     = "llama-3.3-70b-versatile";
 const GROQ_API_URL   = "https://api.groq.com/openai/v1/chat/completions";
-const MAX_FILE_BYTES = 20 * 1024 * 1024;        // 20 MB
+const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const DAILY_LIMIT    = 15;
 const RATE_KEY       = "ms_rate";
-
-// Characters per chunk sent to the model (~12k tokens each, safe for 32k ctx)
 const CHUNK_SIZE     = 6_000;
-// Max chunks before we do a hierarchical merge instead of one big merge prompt
-const MAX_CHUNKS     = 20;
 
 const LOADING_MSGS = [
   "Binabasa ang dokumento...",
@@ -89,36 +86,25 @@ function refundRequest() {
 //  TEXT CHUNKING
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Split text into chunks of ~CHUNK_SIZE characters, breaking on paragraph
- * boundaries where possible to avoid cutting mid-sentence.
- */
 function chunkText(text, chunkSize = CHUNK_SIZE) {
   if (text.length <= chunkSize) return [text];
-
   const chunks  = [];
   let remaining = text;
-
   while (remaining.length > 0) {
     if (remaining.length <= chunkSize) {
       chunks.push(remaining.trim());
       break;
     }
-
-    // Try to find a paragraph break near the chunk boundary
     let splitAt = chunkSize;
     const paraBreak = remaining.lastIndexOf("\n\n", chunkSize);
     if (paraBreak > chunkSize * 0.5) splitAt = paraBreak;
     else {
-      // Fall back to sentence boundary
       const sentBreak = remaining.lastIndexOf(". ", chunkSize);
       if (sentBreak > chunkSize * 0.5) splitAt = sentBreak + 1;
     }
-
     chunks.push(remaining.slice(0, splitAt).trim());
     remaining = remaining.slice(splitAt).trim();
   }
-
   return chunks.filter(Boolean);
 }
 
@@ -126,10 +112,6 @@ function chunkText(text, chunkSize = CHUNK_SIZE) {
 //  RETRY WRAPPER
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Call an async fn up to `maxAttempts` times.
- * Retries on 429 (rate limit) and 5xx (server errors) with exponential backoff.
- */
 async function withRetry(fn, maxAttempts = 4, baseDelayMs = 1500) {
   let lastErr;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -143,9 +125,7 @@ async function withRetry(fn, maxAttempts = 4, baseDelayMs = 1500) {
         err?.message?.includes("rate") ||
         err?.message?.includes("server") ||
         err?.message?.includes("timeout");
-
       if (!isRetryable || attempt === maxAttempts - 1) throw err;
-
       const delay = baseDelayMs * Math.pow(2, attempt) + Math.random() * 500;
       await new Promise((r) => setTimeout(r, delay));
     }
@@ -172,26 +152,21 @@ async function callGroq(messages, maxTokens = 10000) {
         messages,
       }),
     });
-
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
       const e   = new Error(err.error?.message || `Groq error ${r.status}`);
       e.status  = r.status;
-      if (r.status === 401)
-        e.message = "API key error. Makipag-ugnayan sa admin.";
-      else if (r.status === 429)
-        e.message = "Rate limited ng Groq. Sandaling hintay...";
+      if (r.status === 401) e.message = "API key error. Makipag-ugnayan sa admin.";
+      else if (r.status === 429) e.message = "Rate limited ng Groq. Sandaling hintay...";
       throw e;
     }
-
     return r.json();
   });
-
   return res.choices?.[0]?.message?.content?.trim() || "";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  SYSTEM PROMPT FACTORY
+//  PROMPTS
 // ─────────────────────────────────────────────────────────────────────────────
 
 function systemPrompt(lang) {
@@ -204,9 +179,25 @@ Maging detalyado, organisado, at komprehensibo. Huwag mag-alinlangan na magbigay
 Huwag gumamit ng labis na repetition. Tiyaking bawat punto ay mahalaga at may laman.`;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  SUMMARIZE: SINGLE CHUNK
-// ─────────────────────────────────────────────────────────────────────────────
+function fullSummaryStructure(fileName) {
+  return `Gawin ang isang malinaw, komprehensibo, at DETALYADONG buod ng dokumentong ito: "${fileName}"
+
+Kasama ang lahat ng sumusunod na seksyon:
+
+1. **Pangunahing Paksa** — Ano ang tungkol sa dokumento? Ipaliwanag nang buong-buo.
+
+2. **Konteksto at Layunin** — Bakit ginawa ang dokumentong ito? Para kanino ito?
+
+3. **Mahahalagang Puntos** — Listahan ang LAHAT ng mahahalagang punto. Bawat punto ay may maikling paliwanag.
+
+4. **Mahahalagang Detalye** — Mga espesipikong impormasyon: numero, petsa, pangalan, datos.
+
+5. **Konklusyon at Rekomendasyon** — Ano ang pangunahing takeaway? May mga rekomendasyon ba?
+
+6. **Pangkalahatang Pagtatasa** — Ano ang kahalagahan ng dokumentong ito?
+
+Maging detalyado. Huwag mag-iwan ng mahalagang impormasyon.`;
+}
 
 async function summarizeChunk(chunk, chunkIndex, totalChunks, fileName, lang) {
   const isOnly  = totalChunks === 1;
@@ -215,7 +206,7 @@ async function summarizeChunk(chunk, chunkIndex, totalChunks, fileName, lang) {
     : `\n\nIto ay bahagi ${chunkIndex + 1} ng ${totalChunks} ng dokumento. I-extract ang lahat ng mahahalagang impormasyon mula sa seksyong ito.`;
 
   const prompt = isOnly
-    ? fullSummaryPrompt(chunk, fileName, lang)
+    ? `${fullSummaryStructure(fileName)}\n\n---DOKUMENTO---\n${chunk}`
     : `I-extract at i-summarize ang lahat ng mahahalagang impormasyon mula sa seksyong ito ng dokumento "${fileName}":${partNote}
 
 Kasama:
@@ -237,10 +228,6 @@ ${chunk}`;
     4096
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  SUMMARIZE: MERGE CHUNK SUMMARIES
-// ─────────────────────────────────────────────────────────────────────────────
 
 async function mergeSummaries(chunkSummaries, fileName, lang) {
   const combined = chunkSummaries
@@ -264,48 +251,6 @@ ${combined}`;
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  FULL SUMMARY PROMPT (single-pass)
-// ─────────────────────────────────────────────────────────────────────────────
-
-function fullSummaryStructure(fileName) {
-  return `Gawin ang isang malinaw, komprehensibo, at DETALYADONG buod ng dokumentong ito: "${fileName}"
-
-Kasama ang lahat ng sumusunod na seksyon:
-
-1. **Pangunahing Paksa** — Ano ang tungkol sa dokumento? Ipaliwanag nang buong-buo.
-
-2. **Konteksto at Layunin** — Bakit ginawa ang dokumentong ito? Para kanino ito?
-
-3. **Mahahalagang Puntos** — Listahan ang LAHAT ng mahahalagang punto. Bawat punto ay may maikling paliwanag.
-
-4. **Mahahalagang Detalye** — Mga espesipikong impormasyon: numero, petsa, pangalan, datos.
-
-5. **Konklusyon at Rekomendasyon** — Ano ang pangunahing takeaway? May mga rekomendasyon ba?
-
-6. **Pangkalahatang Pagtatasa** — Ano ang kahalagahan ng dokumentong ito?
-
-Maging detalyado. Huwag mag-iwan ng mahalagang impormasyon.`;
-}
-
-function fullSummaryPrompt(text, fileName, lang) {
-  return `${fullSummaryStructure(fileName)}
-
----DOKUMENTO---
-${text}`;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  ORCHESTRATOR
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Main summarization pipeline:
- *  1. Split text into chunks
- *  2. Summarize each chunk independently (with progress callback)
- *  3. If multiple chunks → merge into one final summary
- *  4. Returns { summary, chunkCount, wordCount }
- */
 async function summarizeDocument(text, fileName, lang, onProgress) {
   const chunks = chunkText(text);
   const total  = chunks.length;
@@ -319,7 +264,6 @@ async function summarizeDocument(text, fileName, lang, onProgress) {
     return summary;
   }
 
-  // Summarize each chunk
   const partials = [];
   for (let i = 0; i < total; i++) {
     onProgress({ phase: "summarizing", done: i, total });
@@ -328,7 +272,6 @@ async function summarizeDocument(text, fileName, lang, onProgress) {
     onProgress({ phase: "summarizing", done: i + 1, total });
   }
 
-  // Merge
   onProgress({ phase: "merging", done: total, total });
   const final = await mergeSummaries(partials, fileName, lang);
   onProgress({ phase: "done", done: total, total });
@@ -341,9 +284,8 @@ async function summarizeDocument(text, fileName, lang, onProgress) {
 
 async function extractDocxText(file) {
   const arrayBuffer = await file.arrayBuffer();
-  const { value, messages } = await mammoth.extractRawText({ arrayBuffer });
+  const { value } = await mammoth.extractRawText({ arrayBuffer });
   if (!value?.trim()) {
-    // Try HTML extraction as fallback for complex docx
     const html = await mammoth.convertToHtml({ arrayBuffer });
     const text = html.value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
     if (!text) throw new Error("Walang nababasang text sa Word document. Baka ito ay image-only o protektado.");
@@ -367,19 +309,16 @@ async function loadPdfJs() {
 
 async function extractPdfText(file) {
   await loadPdfJs();
-
   const arrayBuffer = await file.arrayBuffer();
   let pdf;
   try {
     pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  } catch (e) {
+  } catch {
     throw new Error("Hindi ma-buksan ang PDF. Baka sira o naka-encrypt ang file.");
   }
-
   const totalPages = pdf.numPages;
   const pages      = [];
   let   textFound  = false;
-
   for (let i = 1; i <= totalPages; i++) {
     try {
       const page    = await pdf.getPage(i);
@@ -388,19 +327,16 @@ async function extractPdfText(file) {
       pages.push(text);
       if (text.length > 20) textFound = true;
     } catch {
-      pages.push(""); // Skip unreadable page, don't fail entire doc
+      pages.push("");
     }
   }
-
   if (!textFound) {
     throw new Error(
       `Ang PDF na ito ay mukhang scanned / image-based (${totalPages} pahina). ` +
-      "Hindi ma-extract ang text nang direkta. Gamitin ang OCR software (tulad ng Adobe Acrobat o Google Drive) para i-convert muna bago i-upload."
+      "Hindi ma-extract ang text nang direkta. Gamitin ang OCR software bago i-upload."
     );
   }
-
-  const fullText = pages.join("\n\n").trim();
-  return { text: fullText, pageCount: totalPages };
+  return { text: pages.join("\n\n").trim(), pageCount: totalPages };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -412,8 +348,7 @@ function validateFile(file) {
   const ext = file.name.split(".").pop().toLowerCase();
   if (!["pdf", "docx", "doc"].includes(ext))
     return "PDF o Word (.docx / .doc) lamang ang tinatanggap.";
-  if (file.size === 0)
-    return "Ang file ay walang laman (0 bytes).";
+  if (file.size === 0) return "Ang file ay walang laman (0 bytes).";
   if (file.size > MAX_FILE_BYTES)
     return `Ang file ay masyadong malaki (${(file.size / 1048576).toFixed(1)} MB). Max: 20 MB.`;
   return null;
@@ -427,51 +362,33 @@ function countWords(text) {
 //  SUB-COMPONENTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-function FileTypeIcon({ ext }) {
-  const isPdf = ext === "pdf";
-  const color  = isPdf ? "#bf1e2e" : "#1565c0";
+function BackButton({ onClick }) {
   return (
-    <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
-      <path
-        d="M3 4a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4z"
-        stroke={color} strokeWidth="1.5" fill={color} fillOpacity="0.12"
-      />
-      <path d="M13 2v6h6" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
-      <text x="5" y="19" fontSize="4.5" fontWeight="800" fill={color} fontFamily="sans-serif">
-        {isPdf ? "PDF" : "DOC"}
-      </text>
-    </svg>
+    <button className="ms-back-btn" onClick={onClick}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M19 12H5M12 5l-7 7 7 7" />
+      </svg>
+      Bumalik
+    </button>
   );
 }
 
 function RateBadge({ remaining }) {
   const pct   = remaining / DAILY_LIMIT;
-  const color = pct > 0.4 ? "#f5c518" : pct > 0.15 ? "#e0882a" : "#bf1e2e";
+  const color = pct > 0.4 ? "#F5C518" : pct > 0.15 ? "#E0882A" : "#E8192C";
   return (
     <div className="ms-rate">
-      <span style={{ color }}>◉</span>
-      <span>{remaining} / {DAILY_LIMIT} requests remaining ngayon</span>
+      <span className="ms-rate-dot" style={{ background: color }} />
+      <span style={{ color: "var(--text2)" }}>{remaining} / {DAILY_LIMIT} requests natitira ngayon</span>
     </div>
   );
 }
 
-function ProgressBar({ progress }) {
-  if (!progress) return null;
-  const { phase, done, total } = progress;
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-
-  const label =
-    phase === "chunking"    ? "Hinahati ang dokumento..." :
-    phase === "summarizing" ? `Sinusuri ang bahagi ${done} / ${total}...` :
-    phase === "merging"     ? "Pinagsasama ang mga buod..." :
-    "Tapos na!";
-
+function FileIcon({ ext }) {
+  const isPdf = ext === "pdf";
   return (
-    <div className="ms-progress-wrap">
-      <div className="ms-progress-label">{label} <span>{pct}%</span></div>
-      <div className="ms-progress-bar">
-        <div className="ms-progress-fill" style={{ width: `${pct}%` }} />
-      </div>
+    <div className={`ms-file-icon ${isPdf ? "ms-file-icon-pdf" : "ms-file-icon-doc"}`}>
+      {isPdf ? "PDF" : "DOC"}
     </div>
   );
 }
@@ -480,35 +397,28 @@ function SummaryDisplay({ text }) {
   return (
     <div className="ms-summary-body">
       {text.split("\n").filter(l => l.trim()).map((line, i) => {
-        // Heading: ## or # or **Bold standalone**
         if (/^#{1,3}\s/.test(line))
           return <h3 key={i} className="ms-sum-heading">{line.replace(/^#{1,3}\s/, "")}</h3>;
 
-        if (/^\*\*[^*]+\*\*\s*[—:-]/.test(line) || /^\*\*[^*]+\*\*$/.test(line)) {
-          const cleaned = line.replace(/\*\*/g, "");
-          return <p key={i} className="ms-sum-bold">{cleaned}</p>;
-        }
+        if (/^\*\*[^*]+\*\*\s*[—:-]/.test(line) || /^\*\*[^*]+\*\*$/.test(line))
+          return <p key={i} className="ms-sum-bold">{line.replace(/\*\*/g, "")}</p>;
 
-        // Inline bold
         if (/\*\*.*?\*\*/.test(line)) {
           const html = line.replace(
             /\*\*(.*?)\*\*/g,
-            (_, m) =>
-              `<strong style="color:var(--gold);font-family:'Bebas Neue',sans-serif;letter-spacing:0.05em">${m}</strong>`
+            (_, m) => `<strong style="color:var(--gold);font-family:'Space Grotesk',sans-serif;font-weight:600">${m}</strong>`
           );
           return <p key={i} dangerouslySetInnerHTML={{ __html: html }} />;
         }
 
-        // Bullet
         if (/^[-•*]\s/.test(line))
           return (
             <div key={i} className="ms-sum-bullet">
-              <span className="ms-sum-bullet-dot">◆</span>
+              <span className="ms-sum-bullet-dot" />
               <span>{line.replace(/^[-•*]\s/, "")}</span>
             </div>
           );
 
-        // Numbered list
         const numbered = line.match(/^(\d+)[.)]\s(.*)/);
         if (numbered)
           return (
@@ -518,7 +428,6 @@ function SummaryDisplay({ text }) {
             </div>
           );
 
-        // Divider
         if (/^---+$/.test(line)) return <hr key={i} className="ms-sum-divider" />;
 
         return <p key={i}>{line}</p>;
@@ -531,9 +440,9 @@ function SummaryDisplay({ text }) {
 //  MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function MagsuriTayo() {
+export default function MagsuriTayo({ onBack }) {
   const [file,       setFile]       = useState(null);
-  const [fileStats,  setFileStats]  = useState(null); // { words, pages, chunks }
+  const [fileStats,  setFileStats]  = useState(null);
   const [dragging,   setDragging]   = useState(false);
   const [loading,    setLoading]    = useState(false);
   const [loadingMsg, setLoadingMsg] = useState("");
@@ -546,7 +455,6 @@ export default function MagsuriTayo() {
 
   const fileRef     = useRef();
   const intervalRef = useRef(null);
-  const abortRef    = useRef(false);
 
   // ── Loading message rotation ───────────────────────────────────────────────
   const startLoadingCycle = () => {
@@ -557,11 +465,9 @@ export default function MagsuriTayo() {
       setLoadingMsg(LOADING_MSGS[idx]);
     }, 2200);
   };
-
   const stopLoadingCycle = () => clearInterval(intervalRef.current);
 
   // ── File handling ──────────────────────────────────────────────────────────
-
   const acceptFile = useCallback((f) => {
     const err = validateFile(f);
     if (err) { setError(err); return; }
@@ -580,18 +486,11 @@ export default function MagsuriTayo() {
     setProgress(null);
   };
 
-  const onDrop = useCallback((e) => {
-    e.preventDefault();
-    setDragging(false);
-    const f = e.dataTransfer.files[0];
-    if (f) acceptFile(f);
-  }, [acceptFile]);
-
+  const onDrop      = useCallback((e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) acceptFile(f); }, [acceptFile]);
   const onDragOver  = useCallback((e) => { e.preventDefault(); setDragging(true); }, []);
   const onDragLeave = useCallback(() => setDragging(false), []);
 
   // ── Summarize ──────────────────────────────────────────────────────────────
-
   const handleSummarize = async () => {
     if (!file) return setError("Pumili muna ng dokumento.");
     if (!GROQ_API_KEY) return setError("Hindi ma-load ang API key. Makipag-ugnayan sa admin.");
@@ -599,17 +498,13 @@ export default function MagsuriTayo() {
       return setError(`Naabot na ang limitasyon ngayon (${DAILY_LIMIT} requests/day). Bumalik bukas!`);
     }
     setRemaining(getRemainingRequests());
-
     setLoading(true);
     setError("");
     setSummary("");
     setProgress(null);
-    abortRef.current = false;
-
     startLoadingCycle();
 
     try {
-      // ── 1. Extract text ──────────────────────────────────────────────────
       const ext = file.name.split(".").pop().toLowerCase();
       let extractedText = "";
       let pageCount = null;
@@ -623,50 +518,25 @@ export default function MagsuriTayo() {
       }
 
       if (!extractedText?.trim()) {
-        throw new Error(
-          "Hindi ma-extract ang text mula sa dokumentong ito. " +
-          "Baka ito ay image-only, naka-password-protect, o sira ang file."
-        );
+        throw new Error("Hindi ma-extract ang text mula sa dokumentong ito. Baka image-only, naka-password, o sira ang file.");
       }
 
-      // ── 2. Compute stats ─────────────────────────────────────────────────
       const words  = countWords(extractedText);
       const chunks = chunkText(extractedText);
+      setFileStats({ words, pages: pageCount ?? Math.ceil(words / 250), chunks: chunks.length });
 
-      setFileStats({
-        words,
-        pages:  pageCount ?? Math.ceil(words / 250), // estimate if no page count
-        chunks: chunks.length,
-      });
-
-      // Guard: minimum useful content
       if (words < 30) {
-        throw new Error(
-          "Ang dokumento ay masyadong maikli o halos walang text. " +
-          "Tiyaking hindi ito blank o image-only na file."
-        );
+        throw new Error("Ang dokumento ay masyadong maikli o halos walang text. Tiyaking hindi ito blank o image-only na file.");
       }
 
-      // ── 3. Summarize ─────────────────────────────────────────────────────
-      const result = await summarizeDocument(
-        extractedText,
-        file.name,
-        lang,
-        (prog) => setProgress(prog)
-      );
+      const result = await summarizeDocument(extractedText, file.name, lang, (prog) => setProgress(prog));
 
-      if (!result?.trim()) {
-        throw new Error("Walang buod na natanggap mula sa modelo. Subukan ulit.");
-      }
-
+      if (!result?.trim()) throw new Error("Walang buod na natanggap mula sa modelo. Subukan ulit.");
       setSummary(result);
     } catch (e) {
       refundRequest();
       setRemaining(getRemainingRequests());
-
-      // Map common errors to Tagalog-friendly messages
-      const msg = e.message || "May nangyaring error. Subukan ulit.";
-      setError(msg);
+      setError(e.message || "May nangyaring error. Subukan ulit.");
     } finally {
       stopLoadingCycle();
       setLoading(false);
@@ -680,8 +550,8 @@ export default function MagsuriTayo() {
   };
 
   // ── Derived ─────────────────────────────────────────────────────────────────
-  const fileExt   = file?.name.split(".").pop().toLowerCase() ?? "";
-  const fileSize  = file ? `${(file.size / 1024).toFixed(1)} KB` : "";
+  const fileExt  = file?.name.split(".").pop().toLowerCase() ?? "";
+  const fileSize = file ? `${(file.size / 1024).toFixed(1)} KB` : "";
   const canSubmit = !loading && !!file && remaining > 0;
 
   const progressLabel = (() => {
@@ -689,9 +559,9 @@ export default function MagsuriTayo() {
     const { phase, done, total } = progress;
     const pct = total > 0 ? Math.round((done / total) * 100) : 0;
     if (phase === "chunking")    return `Hinahati ang dokumento... ${pct}%`;
-    if (phase === "summarizing") return `Sinusuri ang bahagi ${done} / ${total} ... ${pct}%`;
-    if (phase === "merging")     return `Pinagsasama ang mga buod... ${pct}%`;
-    return `Tapos na! ${pct}%`;
+    if (phase === "summarizing") return `Sinusuri ang bahagi ${done} / ${total}`;
+    if (phase === "merging")     return `Pinagsasama ang mga buod...`;
+    return `Tapos na!`;
   })();
 
   const progressPct = (() => {
@@ -701,23 +571,25 @@ export default function MagsuriTayo() {
   })();
 
   // ── Render ─────────────────────────────────────────────────────────────────
-
   return (
     <div className="ms-root">
 
+      {/* Back Button */}
+      <BackButton onClick={onBack ?? (() => window.history.back())} />
+
+      {/* Header */}
       <div className="ms-header">
+        <div className="ms-eyebrow">AI Document Summarizer</div>
         <h1 className="ms-title">
-          E-<span className="ms-title-gold">Panisuri</span>
+          P<span className="ms-title-gold">ANURI</span>
         </h1>
         <p className="ms-subtitle">
-          I-upload ang iyong dokumento — kahit gaano kalaki.
+          I-upload ang iyong dokumento
         </p>
       </div>
 
+      {/* Main Card */}
       <div className="ms-card">
-        <div className="ms-corner ms-corner-tl" />
-        <div className="ms-corner ms-corner-br" />
-
         <RateBadge remaining={remaining} />
 
         {/* Language */}
@@ -726,12 +598,9 @@ export default function MagsuriTayo() {
           <button className={`ms-lang-btn${lang === "fil" ? " on" : ""}`} onClick={() => setLang("fil")}>
             🇵🇭 Filipino
           </button>
-          <button className={`ms-lang-btn${lang === "en" ? " on" : ""}`} onClick={() => setLang("en")}>
-            🇺🇸 English
-          </button>
         </div>
 
-        {/* Drop zone */}
+        {/* Drop Zone */}
         <div className="ms-label">Dokumento</div>
         <div
           className={`ms-drop${dragging ? " active" : ""}`}
@@ -740,11 +609,16 @@ export default function MagsuriTayo() {
           onDragLeave={onDragLeave}
           onClick={() => fileRef.current?.click()}
         >
-          <span className="ms-drop-icon">📄</span>
+          <div className="ms-drop-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text2)" }}>
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="12" y1="18" x2="12" y2="12" />
+              <line x1="9" y1="15" x2="15" y2="15" />
+            </svg>
+          </div>
           <p className="ms-drop-text">I-drag dito ang iyong file, o mag-click para pumili</p>
-          <p className="ms-drop-sub">
-            Tinatanggap: PDF, DOCX · Max 20 MB · Anumang laki ng dokumento
-          </p>
+          <p className="ms-drop-sub">PDF, DOCX · Max 20 MB </p>
         </div>
         <input
           ref={fileRef}
@@ -754,49 +628,68 @@ export default function MagsuriTayo() {
           onChange={(e) => { if (e.target.files[0]) acceptFile(e.target.files[0]); }}
         />
 
-        {/* File chip */}
+        {/* File Chip */}
         {file && (
           <div className="ms-file">
-            <FileTypeIcon ext={fileExt} />
+            <FileIcon ext={fileExt} />
             <div className="ms-file-info">
               <div className="ms-file-name">{file.name}</div>
-              <div className="ms-file-size">
+              <div className="ms-file-meta">
                 {fileSize}
                 {fileStats && (
-                  <span style={{ marginLeft: 8 }}>
-                    · ~{fileStats.words.toLocaleString()} salita
-                    · {fileStats.chunks > 1 ? `${fileStats.chunks} chunks` : "1 chunk"}
+                  <span>
+                    {" "}· ~{fileStats.words.toLocaleString()} salita
+                    {fileStats.chunks > 1 ? ` · ${fileStats.chunks} chunks` : ""}
                   </span>
                 )}
               </div>
             </div>
-            <button className="ms-rm-btn" onClick={clearFile}>✕</button>
+            <button className="ms-rm-btn" onClick={clearFile} title="Alisin ang file">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
           </div>
         )}
       </div>
 
       {/* Error */}
-      {error && <div className="ms-error">⚠ {error}</div>}
+      {error && (
+        <div className="ms-error">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 1 }}>
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          {error}
+        </div>
+      )}
 
       {/* Submit */}
       <div className="ms-btn-row">
         <button className="ms-btn" onClick={handleSummarize} disabled={!canSubmit}>
           {loading ? (
             <>
-              <div className="ms-spinner" style={{ width: 20, height: 20, margin: 0 }} />
+              <div className="ms-spinner" style={{ width: 18, height: 18, margin: 0 }} />
               {loadingMsg}
             </>
           ) : remaining === 0 ? (
-            "✦ UBOS NA ANG LIMIT NGAYON ✦"
+            "Ubos na ang limit ngayon"
           ) : (
-            "✦ SIMULAN ANG PAGSUSURI ✦"
+            <>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+              Simulan ang Pagsusuri
+            </>
           )}
         </button>
       </div>
 
       {/* Progress */}
       {loading && progress && (
-        <div className="ms-summary" style={{ paddingTop: 16 }}>
+        <div className="ms-summary" style={{ paddingTop: "1.5rem" }}>
           <div className="ms-progress-wrap">
             <div className="ms-progress-label">
               <span>{progressLabel}</span>
@@ -809,7 +702,7 @@ export default function MagsuriTayo() {
         </div>
       )}
 
-      {/* Loading spinner (before progress kicks in) */}
+      {/* Loading spinner before progress */}
       {loading && !progress && (
         <div className="ms-summary">
           <div className="ms-loading">
@@ -822,16 +715,38 @@ export default function MagsuriTayo() {
       {/* Result */}
       {summary && !loading && (
         <div className="ms-summary">
-          <div className="ms-corner ms-corner-tl" />
-          <div className="ms-corner ms-corner-br" />
           <div className="ms-sum-header">
-            <div className="ms-sum-title">📋 Buod ng Dokumento</div>
+            <div className="ms-sum-title">
+              <span className="ms-sum-pill">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+                Buod
+              </span>
+              {file?.name}
+            </div>
             <button className={`ms-copy-btn${copied ? " on" : ""}`} onClick={handleCopy}>
-              {copied ? "✓ NAKOPYA" : "⎘ KOPYAHIN"}
+              {copied ? (
+                <>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  Nakopya
+                </>
+              ) : (
+                <>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                  </svg>
+                  Kopyahin
+                </>
+              )}
             </button>
           </div>
           {fileStats?.chunks > 1 && (
-            <div style={{ fontSize: 12, color: "#888", padding: "0 1rem 0.5rem", fontStyle: "italic" }}>
+            <div className="ms-chunk-info">
               Naproseso ng {fileStats.chunks} chunks · ~{fileStats.words.toLocaleString()} salita
             </div>
           )}
@@ -839,10 +754,13 @@ export default function MagsuriTayo() {
         </div>
       )}
 
+      {/* Footer */}
       <div className="ms-footer">
-        <span>Powered by Groq · llama-3.3-70b-versatile</span>
-        <div className="ms-footer-dot" />
-        <span>E-Panisuri</span>
+        <span>Powered by Groq</span>
+        <span className="ms-footer-sep" />
+        <span>llama-3.3-70b-versatile</span>
+        <span className="ms-footer-sep" />
+        <span>PANURI</span>
       </div>
 
     </div>

@@ -1,306 +1,157 @@
-import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { supabase } from '../API/supabase'
-import './Pagsusuri.css'
+import React from 'react';
+import './Pagsusuri.css';
 
-// ── Intersection hook for scroll-reveal ──────────────────────────────────────
-function useIntersection(ref) {
-  const [visible, setVisible] = useState(false)
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const obs = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) { setVisible(true); obs.disconnect() } },
-      { threshold: 0.10 }
-    )
-    obs.observe(el)
-    return () => obs.disconnect()
-  }, [])
-  return visible
-}
+const LEVELS = [
+  {
+    id: 'pag-unawa',
+    letter: 'P',
+    heading: 'Pag-unawa',
+    text: `Ito ang unang hakbang sa pagsusuri kung saan inuunawa ang kabuuang ideya ng teksto o paksa. Mahalaga ang malinaw na pag-unawa upang magkaroon ng matibay na pundasyon sa susunod na hakbang. Hindi maaaring magsuri ang isang indibidwal kung hindi lubos na nauunawaan ang binabasa o pinag-aaralan. Dito nagsisimula ang mas malalim na pag-iisip at ito rin ang susi upang maiwasan ang maling interpretasyon.`,
+  },
+  {
+    id: 'analisis',
+    letter: 'A',
+    heading: 'Analisis',
+    text: `Sa bahaging ito, tinutulak tayo sa isang malalim na pag-aaral ng bawat nilalaman. Binibigyang-diin ang detalye, impormasyon, at ugnayin ng mga ideya. Dito malalaman ng mag-aaral ang mga mahalagang kaalaman. Ang bawat pagtanggap ng mag-aaral sa kaalaman ay may katumbas na pag-aaral na pagpapalago.`,
+  },
+  {
+    id: 'gabay-ng-ebidensya',
+    letter: 'G',
+    heading: 'Gabay ng Ebidensya',
+    text: `Sa bahaging ito, tinutulungan ang mag-aaral na mahanap at makilala ang mga ebidensya at ugnayin ng mga ideya. Dito malalaman ng mag-aaral ang mga mahalagang kaalaman na magiging batayan ng kanilang mga pagsusuri at mas malalim na pag-unawa sa paksa.`,
+  },
+  {
+    id: 'sintesis',
+    letter: 'S',
+    heading: 'Sintesis',
+    text: `Matuto sarin ang mga huling pinagsama-samang mga ideya upang maisang-isip ang kabuuan. Sa pamamagitan ng sintesis, ang mga mag-aaral ay magiging handa sa mas mataas na antas ng pag-iisip. Ang layunin ng sintesis ay ang pagpapalago ng kaalaman na may sapat at wastong pagpapaliwanag sa alinmang sitwasyon.`,
+  },
+  {
+    id: 'ugnayan',
+    letter: 'U',
+    heading: 'Ugnayan',
+    text: `Tinatasa ang mga koneksyon ng bawat mag-aaral at inuugnay ang pag-aaral sa totoong buhay. Ang layunin ng bahaging ito ay upang malaman ng mga mag-aaral ang kahalagahan ng kanilang mga natutuhan sa araw-araw na pamumuhay at pag-unlad ng lipunan.`,
+  },
+  {
+    id: 'sariling-pananaw',
+    letter: 'S',
+    heading: 'Sariling Pananaw',
+    text: `Sa bahaging ito, hinihikayat ang mag-aaral na magpahayag ng kanilang mga saloobin at pananaw. Mahalaga ang bahaging ito na makamit ang mataas na antas ng pag-iisip sa pamamagitan ng paglikha ng sariling pananaw at kahulugan.`,
+  },
+  {
+    id: 'unawang-malalim',
+    letter: 'U',
+    heading: 'Unawang Malalim',
+    text: `Ang pag-unawa sa ikatlong antas ng pagsusuri ay nagbibigay-daan sa mag-aaral na ipakita ang mataas na antas ng pag-iisip. Dito nagbibigay ng malalim na kahulugan at interpretasyon ang mga mag-aaral sa lahat ng napag-aralan nila sa nakaraang mga aralin at karanasan.`,
+  },
+  {
+    id: 'repleksyon',
+    letter: 'R',
+    heading: 'Repleksyon',
+    text: `Ang repleksyon ay nagpapalalim ng pag-aaral, dito sinisiyasat ng mag-aaral ang kanilang sariling pag-unlad. Nagtutulak ito sa mag-aaral na suriin ang kanilang mga proseso ng pag-iisip at pag-aaral upang mapabuti ang kanilang kakayahan sa hinaharap.`,
+  },
+  {
+    id: 'integrasyon',
+    letter: 'I',
+    heading: 'Integrasyon',
+    text: `Sa huling hakbang, isinasama ang lahat ng mga pag-aaral sa isang maayos na kabuuan. Ang integrasyon ay nagbibigay ng pagkakataon sa mga mag-aaral na ikonekta ang lahat ng kanilang natutuhan sa isang mas malawak na konteksto ng kaalaman, pag-unlad, at pagtanggap ng bagong kaalaman.`,
+  },
+];
 
-// ── Star renderer ─────────────────────────────────────────────────────────────
-function Stars({ rating = 0 }) {
-  return (
-    <div className="pag-card__stars" aria-label={`${rating} sa 5 bituin`}>
-      {Array.from({ length: 5 }, (_, i) => {
-        const filled = rating >= i + 1
-        const half   = !filled && rating >= i + 0.5
-        return (
-          <span
-            key={i}
-            className={[
-              'pag-star',
-              filled ? 'pag-star--filled' : '',
-              half   ? 'pag-star--half'   : '',
-            ].join(' ').trim()}
-          />
-        )
-      })}
-      <span className="pag-card__rating-num">{rating.toFixed(1)}</span>
-    </div>
-  )
-}
+const STEPS = [
+  { number: '01', label: 'Layunin ng Pag-aaral' },
+  { number: '02', label: 'Gabay ng Pag-aaral' },
+  { number: '03', label: 'Aktibidad ng Pag-aaral' },
+  { number: '04', label: 'Pagtatasa ng Pag-aaral' },
+  { number: '05', label: 'Repleksyon ng Pag-aaral' },
+];
 
-// ── Verdict badge ─────────────────────────────────────────────────────────────
-function Verdict({ rating }) {
-  if (!rating) return null
-  const recommended = rating >= 3.5
-  return (
-    <span className={`pag-verdict pag-verdict--${recommended ? 'recommended' : 'mixed'}`}>
-      <span className="pag-verdict__dot" />
-      {recommended ? 'Inirerekomenda' : 'Halo-halo'}
-    </span>
-  )
-}
-
-// ── Initials from name ────────────────────────────────────────────────────────
-function initials(name = '') {
-  return name
-    .split(' ')
-    .slice(0, 2)
-    .map(w => w[0]?.toUpperCase() ?? '')
-    .join('')
-}
-
-// ── Format date ───────────────────────────────────────────────────────────────
-function formatDate(dateStr) {
-  if (!dateStr) return ''
-  return new Date(dateStr).toLocaleDateString('fil-PH', {
-    year: 'numeric', month: 'short', day: 'numeric',
-  })
-}
-
-// ── Single review card ────────────────────────────────────────────────────────
-function ReviewCard({ item, index, featured = false }) {
-  const ref     = useRef(null)
-  const visible = useIntersection(ref)
-  const [expanded, setExpanded] = useState(false)
-
-  const hasCover    = Boolean(item.cover)
-  const longReview  = (item.review ?? '').length > 280
-  const bookTitle   = item.book_title ?? item.bookTitle ?? item.booktitle ?? ''
-  const reviewerName = item.reviewer_name ?? item.reviewerName ?? 'Hindi Kilala'
-
-  return (
-    <article
-      ref={ref}
-      className={[
-        'pag-card',
-        featured ? 'pag-card--featured' : '',
-        visible  ? 'pag-card--visible'  : '',
-      ].join(' ').trim()}
-      style={{ '--i': index }}
-    >
-      <div className="pag-card__glow" aria-hidden="true" />
-
-      {/* Top: cover + book info */}
-      <div className="pag-card__top">
-        <div className="pag-card__cover-wrap">
-          {hasCover && (
-            <img
-              src={item.cover}
-              alt={`${bookTitle} cover`}
-              className="pag-card__cover-img"
-              onError={e => { e.currentTarget.style.display = 'none' }}
-            />
-          )}
-          <div className="pag-card__cover-fallback" aria-hidden="true">
-            <span>{bookTitle.charAt(0)}</span>
-          </div>
-        </div>
-
-        <div className="pag-card__bookinfo">
-          {item.genre && (
-            <span className="pag-card__genre">{item.genre}</span>
-          )}
-          <h3 className="pag-card__booktitle" title={bookTitle}>
-            {bookTitle}
-          </h3>
-          <p className="pag-card__author">
-            ni {item.author ?? 'Hindi Kilala'}
-          </p>
-          <Stars rating={item.rating ?? 0} />
-        </div>
-      </div>
-
-      <div className="pag-card__divider" />
-
-      {/* Review body */}
-      <div className="pag-card__body">
-        <span className="pag-card__quote-mark" aria-hidden="true">&ldquo;</span>
-        <p className={`pag-card__review-text${expanded ? ' pag-card__review-text--expanded' : ''}`}>
-          {item.review}
-        </p>
-        {longReview && (
-          <button
-            className="pag-card__toggle"
-            onClick={() => setExpanded(p => !p)}
-          >
-            {expanded ? '↑ Bawasan' : '↓ Basahin pa'}
-          </button>
-        )}
-      </div>
-
-      {/* Footer */}
-      <div className="pag-card__footer">
-        <div className="pag-card__reviewer">
-          <div className="pag-card__avatar">
-            <span>{initials(reviewerName)}</span>
-          </div>
-          <span className="pag-card__reviewer-name">{reviewerName}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          {item.created_at && (
-            <span className="pag-card__date">{formatDate(item.created_at)}</span>
-          )}
-          <Verdict rating={item.rating} />
-        </div>
-      </div>
-    </article>
-  )
-}
-
-// ── Page component ────────────────────────────────────────────────────────────
 export default function Pagsusuri() {
-  const navigate  = useNavigate()
-  const [reviews,  setReviews]  = useState([])
-  const [loading,  setLoading]  = useState(true)
-  const [filter,   setFilter]   = useState('Lahat')
-  const [sort,     setSort]     = useState('pinakabago')
-  const headerRef     = useRef(null)
-  const headerVisible = useIntersection(headerRef)
-
-  useEffect(() => {
-    async function fetchReviews() {
-      const { data, error } = await supabase
-        .from('reviews')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (!error && data) setReviews(data)
-      setLoading(false)
-    }
-    fetchReviews()
-  }, [])
-
-  // Derive genre tags
-  const tags = [
-    'Lahat',
-    ...Array.from(new Set(reviews.map(r => r.genre).filter(Boolean))),
-  ]
-
-  // Filter
-  const filtered = filter === 'Lahat'
-    ? reviews
-    : reviews.filter(r => r.genre === filter)
-
-  // Sort
-  const sorted = [...filtered].sort((a, b) => {
-    if (sort === 'pinakamataas') return (b.rating ?? 0) - (a.rating ?? 0)
-    if (sort === 'pinakamababa') return (a.rating ?? 0) - (b.rating ?? 0)
-    // pinakabago (default)
-    return new Date(b.created_at ?? 0) - new Date(a.created_at ?? 0)
-  })
-
   return (
-    <main className="pag-page">
-      <div className="pag-page__texture" aria-hidden="true" />
+    <div className="pagsusuri-page">
 
-      <div className="pag-page__inner">
+      {/* ── Hero ── */}
+      <header className="pagsusuri-hero">
+        <p className="hero-eyebrow">Pagsusuri</p>
+        <h1 className="hero-title">
+          Ano ba ang Pagsusuri para sa isang katulad kong Mapaghamong Mag-aaral?
+        </h1>
+        <p className="hero-subtitle">
+          This is a description
+        </p>
+      </header>
 
-        {/* Back */}
-        <button className="pag-back" onClick={() => navigate(-1)}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" strokeWidth="2.5"
-            strokeLinecap="round" strokeLinejoin="round">
-            <path d="M19 12H5M12 19l-7-7 7-7" />
-          </svg>
-          <span>Bumalik</span>
-        </button>
+      {/* ── Body: Book Spine + Levels ── */}
+      <main className="pagsusuri-body">
 
-        {/* Header */}
-        <header
-          ref={headerRef}
-          className={`pag-header ${headerVisible ? 'pag-header--visible' : ''}`}
-        >
-          <div className="pag-eyebrow">
-            <span className="pag-eyebrow__line" />
-            <span className="pag-eyebrow__text">Mga Pagsusuri</span>
-            <span className="pag-eyebrow__line" />
+        {/* Book Spine */}
+        <aside className="pagsusuri-spine" aria-hidden="true">
+          <div className="spine-cap">
+            <div className="spine-cap-line" />
+            <div className="spine-cap-dot" />
+            <div className="spine-cap-line" />
           </div>
 
-          <h1 className="pag-heading">
-            <span className="pag-heading__white">Mga Tinig ng</span>{' '}
-            <span className="pag-heading__gold">Mambabasa</span>
-          </h1>
-
-          <p className="pag-subheading">
-            Mga tapat na pagsusuri mula sa mga nagmamahal sa panitikang Pilipino.
-          </p>
-        </header>
-
-        {/* Genre filter pills */}
-        <div className="pag-filters" role="group" aria-label="Salain ayon sa genre">
-          {tags.map(tag => (
-            <button
-              key={tag}
-              className={`pag-pill ${filter === tag ? 'pag-pill--active' : ''}`}
-              onClick={() => setFilter(tag)}
-            >
-              {tag}
-            </button>
-          ))}
-        </div>
-
-        {/* Sort bar */}
-        {!loading && sorted.length > 0 && (
-          <div className="pag-sortbar">
-            <p className="pag-sortbar__count">
-              <strong>{sorted.length}</strong> pagsusuri ang natagpuan
-            </p>
-            <select
-              className="pag-sort-select"
-              value={sort}
-              onChange={e => setSort(e.target.value)}
-              aria-label="Pagbukud-bukurin ang mga pagsusuri"
-            >
-              <option value="pinakabago">PINAKABAGO</option>
-              <option value="pinakamataas">PINAKAMATAAS</option>
-              <option value="pinakamababa">PINAKAMABABA</option>
-            </select>
-          </div>
-        )}
-
-        {/* Content */}
-        {loading ? (
-          <div className="pag-loading">
-            <div className="pag-loading__spinner" />
-            <p>Naglo-load ang mga pagsusuri…</p>
-          </div>
-        ) : sorted.length === 0 ? (
-          <div className="pag-loading">
-            <p>Walang mga pagsusuri sa ngayon.</p>
-          </div>
-        ) : (
-          <div className="pag-grid">
-            {sorted.map((item, i) => (
-              <ReviewCard
-                key={item.id}
-                item={item}
-                index={i}
-                featured={i === 0 && filter === 'Lahat' && sort === 'pinakabago'}
-              />
+          <div className="spine-letters">
+            {LEVELS.map((level) => (
+              <div key={level.id} className="spine-letter">
+                {level.letter}
+              </div>
             ))}
           </div>
-        )}
 
-      </div>
+          <div className="spine-cap">
+            <div className="spine-cap-line" />
+            <div className="spine-cap-dot" />
+            <div className="spine-cap-line" />
+          </div>
+        </aside>
 
-      {/* Bottom rule */}
-      <div className="pag-rule" aria-hidden="true">
-        <span /><span className="pag-rule__diamond" /><span />
-      </div>
-    </main>
-  )
+        {/* Level Cards */}
+        <section className="pagsusuri-levels" aria-label="Mga Antas ng Pagsusuri">
+          {LEVELS.map((level) => (
+            <div key={level.id} className="level-row">
+              <div className="level-content">
+                <h2 className="level-heading">{level.heading}</h2>
+                <p className="level-text">{level.text}</p>
+              </div>
+            </div>
+          ))}
+        </section>
+
+      </main>
+
+      <div className="ornament">◆ &nbsp; ◆ &nbsp; ◆</div>
+
+      {/* ── Footer / Layunin ── */}
+      <footer className="pagsusuri-footer">
+        <div className="footer-inner">
+
+          <h3 className="footer-title">Layunin ng Pagsusuri</h3>
+
+          <p className="footer-intro">
+            Ang bawat gawain o ginagawa ng isang indibidwal o mag-aaral ay kinakailangang may tiyak na
+            gampanin at layunin upang magkaroon ng direksyon at kabuluhan ang bawat hakbang na isinasagawa.
+            Ang pagsusuri ay isa sa mga mahahalagang kasanayan na nagbibigay saysay sa pag-aaral sapagkat
+            pinauunlad nito ang pag-iisip, pag-unawa, at pagpasya.
+          </p>
+
+          <div className="steps-row" role="list">
+            {STEPS.map((step) => (
+              <div key={step.number} className="step-card" role="listitem">
+                <div className="step-number">{step.number}</div>
+                <div className="step-label">{step.label}</div>
+              </div>
+            ))}
+          </div>
+
+          <p className="footer-note">
+            Ang pangunahing layunin ng pagsusuri ay ang maunawaan nang malalim at mabigyan ng makabuluhang interpretasyon ang isang paksa, teksto, o karanasan. Hindi ito nakatuon sa simpleng pagkuha ng impormasyon, kundi sa paghimay ng mga ideya upang matukoy ang ugnayan, kahulugan, at layunin ng mga ito. Layunin din nitong matukoy kung ang isang pahayag o konsepto ay may sapat na batayan at lohikal na pagkakabuo. Sa pamamagitan ng pagsusuri, nagiging malinaw kung alin ang mahalaga, totoo, at kapani-paniwala sa isang paksa. Ito rin ay naglalayong malinang ang kritikal na pag-iisip upang makabuo ng matibay na konklusyon. Higit sa lahat, ang pagsusuri ay nagiging daan upang magamit ang kaalaman sa mas praktikal at makabuluhang paraan.
+          </p>
+
+        </div>
+      </footer>
+
+    </div>
+  );
 }

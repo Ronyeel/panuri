@@ -35,7 +35,7 @@
   scrollbar-color: rgba(245, 197, 24, 0.2) transparent;
   position: sticky;
   top: var(--navbar-h);
-  z-index: 90;
+  z-index: 1;
 }
 
 /* Minimized state */
@@ -43,15 +43,7 @@
   width: var(--sidebar-w-min);
 }
 
-.sidebar.minimized .sidebar-section-label,
-.sidebar.minimized .sidebar-link span {
-  opacity: 0;
-  visibility: hidden;
-  width: 0;
-  margin-left: 0;
-}
-
-/* ── Main Content (Auto-adjusts, no gap) ────────────────────── */
+/* ── Main Content ───────────────────────────────────────────── */
 main.with-sidebar {
   flex: 1;
   min-height: calc(100vh - var(--navbar-h));
@@ -83,7 +75,6 @@ footer.with-sidebar {
     transform: translateX(0);
   }
 
-  /* Main takes full width on mobile */
   main.with-sidebar {
     margin-left: 0 !important;
   }
@@ -110,11 +101,6 @@ footer.with-sidebar {
   .sidebar {
     padding: 18px 0 20px;
   }
-  
-  .sidebar-link {
-    padding: 13px 20px;
-    font-size: 0.93rem;
-  }
 }
 
 /* ── Nav Links ──────────────────────────────────────────────── */
@@ -122,11 +108,10 @@ footer.with-sidebar {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 11px 20px;
+  padding: 12px 10px;
   font-family: 'Crimson Text', serif;
-  font-size: 0.88rem;
+  font-size: 0.8rem;
   font-weight: 600;
-  letter-spacing: 0.05em;
   text-transform: uppercase;
   text-decoration: none;
   color: var(--text-muted);
@@ -134,8 +119,17 @@ footer.with-sidebar {
   transition: all 0.25s ease;
   white-space: nowrap;
   overflow: hidden;
+  position: relative;
 }
 
+.sidebar-link span {
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 1;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Hover effect */
 .sidebar-link:hover {
   color: var(--text);
   background: var(--gold-dim);
@@ -143,6 +137,11 @@ footer.with-sidebar {
   padding-left: 27px;
 }
 
+.sidebar-link:hover .icon {
+  transform: scale(1.08);
+}
+
+/* Icon */
 .sidebar-link .icon {
   width: 22px;
   height: 22px;
@@ -152,10 +151,6 @@ footer.with-sidebar {
   justify-content: center;
   font-size: 1.15rem;
   transition: transform 0.25s ease;
-}
-
-.sidebar-link:hover .icon {
-  transform: scale(1.08);
 }
 
 /* Active state */
@@ -168,6 +163,37 @@ footer.with-sidebar {
 
 .sidebar-link--active .icon {
   color: #8a0a0f;
+}
+
+/* ── Minimized Sidebar Labels ──────────────────────────────── */
+.sidebar.minimized .sidebar-link span,
+.sidebar.minimized .sidebar-section-label {
+  opacity: 0;
+  visibility: hidden;
+  width: 0;
+  margin-left: 0;
+  flex: 0 0 0;
+  overflow: hidden;
+}
+
+/* Nice tooltip when hovering minimized items */
+.sidebar.minimized .sidebar-link:hover span {
+  position: absolute;
+  left: calc(var(--sidebar-w-min) + 16px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: #1a1a1a;
+  color: var(--text);
+  padding: 8px 16px;
+  border-radius: 6px;
+  opacity: 1;
+  visibility: visible;
+  width: auto;
+  white-space: nowrap;
+  z-index: 110;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(245, 197, 24, 0.3);
+  font-size: 0.86rem;
 }
 
 /* ── Toggle Button ──────────────────────────────────────────── */
@@ -203,5 +229,38 @@ footer.with-sidebar {
 @media (max-width: 1024px) {
   .sidebar-toggle {
     display: none;
+  }
+
+  /* On mobile: prevent minimization, always show full labels */
+  .sidebar.minimized {
+    width: var(--sidebar-w);
+  }
+
+  .sidebar.minimized .sidebar-link span,
+  .sidebar.minimized .sidebar-section-label {
+    opacity: 1;
+    visibility: visible;
+    width: auto;
+    margin-left: 12px;
+    flex: 1;
+  }
+
+  .sidebar-link {
+    padding: 13px 20px;
+    font-size: 0.95rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebar-link {
+    padding: 14px 22px;
+    gap: 14px;
+    font-size: 0.97rem;
+  }
+
+  .sidebar-link .icon {
+    width: 24px;
+    height: 24px;
+    font-size: 1.25rem;
   }
 }

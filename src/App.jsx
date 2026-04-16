@@ -1,31 +1,36 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from './API/firebase';
 
-import NavBar from './components/NavBar';
-import Footer from './components/Footer';
-import Sidebar from './components/SideBar';
-import Notification from './components/notification';
+import NavBar            from './components/NavBar';
+import Footer            from './components/Footer';
+import Sidebar           from './components/SideBar';
+import Notification      from './components/notification';
 import AdminToggleButton from './admin/AdminToggleButton';
-import AdminRoute from './admin/adminRoute';
-import AdminLayout from './admin/adminLayout';
-import AdminDashboard from './admin/adminDashboard';
-import AdminBooks from './admin/adminBooks';
-import AdminQuiz from './admin/adminQuiz';
-import AdminExcerpts from './admin/adminExcerpts';
+import AdminRoute        from './admin/adminRoute';
+import AdminLayout       from './admin/adminLayout';
+import AdminDashboard    from './admin/adminDashboard';
+import AdminBooks        from './admin/adminBooks';
+import AdminExcerpts     from './admin/adminExcerpts';
 
-import HomePage from './pages/HomePage';
-import MgaLibro from './pages/mgaLibro';
-import BookPage from './pages/bookPage';
-import ExcerptsPage from './pages/Excerpt';
-import Pagsusuri from './pages/Pagsusuri';
-import Pagsusulit from './pages/pagsusulit';
-import Login from './pages/login';
-import Registration from './pages/register';
-import ProfilePage from './pages/profile';
-import MagsuriTayo from './pages/magsuriTayo';
+// ── New quiz admin pages (sets + grading) ─────────────────────
+import AdminQuizSets    from './admin/adminQuizSets';
+import AdminQuizGrading from './admin/adminQuizGrading';
+
+// ── Player-facing pages ───────────────────────────────────────
+import HomePage             from './pages/HomePage';
+import MgaLibro             from './pages/mgaLibro';
+import BookPage             from './pages/bookPage';
+import ExcerptsPage         from './pages/Excerpt';
+import Pagsusuri            from './pages/Pagsusuri';
+import Pagsuslit            from './pages/pagsusulit';   // new multi-type player quiz
+import Login                from './pages/login';
+import Registration         from './pages/register';
+import ProfilePage          from './pages/profile';
+import MagsuriTayo          from './pages/magsuriTayo';
+import TeoryangPampanitikan from './pages/teoryangPampanitikan';
 
 // ─── Constants ────────────────────────────────────────────────
 const CHROME_HIDDEN_ROUTES = new Set(['/login', '/register', '/magsuri']);
@@ -46,7 +51,8 @@ function RequireAuth({ user, authReady, children }) {
     if (!authReady) return;
 
     if (!user) {
-      const isProtected = PROTECTED_ROUTES.has(pathname) || pathname.startsWith('/libro/');
+      const isProtected =
+        PROTECTED_ROUTES.has(pathname) || pathname.startsWith('/libro/');
       setStatus(isProtected ? 'unauth' : 'ok');
       return;
     }
@@ -54,27 +60,21 @@ function RequireAuth({ user, authReady, children }) {
     let cancelled = false;
     setStatus('pending');
 
-    // 🔥 SAFE Firestore check (no auto logout bug)
     getDoc(doc(db, 'users', user.uid))
-      .then(snap => {
-        if (cancelled) return;
-        setStatus('ok'); // ← always allow (avoid false deletion issue)
-      })
-      .catch(() => {
-        if (!cancelled) setStatus('ok');
-      });
+      .then(() => { if (!cancelled) setStatus('ok'); })
+      .catch(() => { if (!cancelled) setStatus('ok'); });
 
-    return () => { cancelled = true };
+    return () => { cancelled = true; };
   }, [user, authReady, pathname]);
 
   if (status === 'pending') return <Blank />;
-  if (status === 'unauth') return <Navigate to="/login" replace />;
+  if (status === 'unauth')  return <Navigate to="/login" replace />;
   return children;
 }
 
 function RedirectIfAuthed({ user, authReady, children }) {
   if (!authReady) return <Blank />;
-  if (user) return <Navigate to="/" replace />;
+  if (user)       return <Navigate to="/" replace />;
   return children;
 }
 
@@ -82,8 +82,8 @@ function useHideChrome() {
   const { pathname } = useLocation();
   return (
     CHROME_HIDDEN_ROUTES.has(pathname) ||
-    pathname.startsWith('/libro/') ||
-    pathname === '/excerpts' ||
+    pathname.startsWith('/libro/')     ||
+    pathname === '/excerpts'           ||
     pathname.startsWith('/admin')
   );
 }
@@ -102,7 +102,7 @@ function Layout({ notif, setNotif, user, authReady }) {
   }, [isMinimized]);
 
   const isLoggedIn = !!user;
-  const username = user?.displayName || user?.email || '';
+  const username   = user?.displayName || user?.email || '';
 
   return (
     <>
@@ -124,41 +124,72 @@ function Layout({ notif, setNotif, user, authReady }) {
           />
         )}
 
-        {/* 🚨 ALWAYS RENDER ROUTES */}
-        <main className={!hideChrome ? `with-sidebar ${isMinimized ? 'minimized' : ''}` : ''}>
+        <main
+          className={
+            !hideChrome
+              ? `with-sidebar ${isMinimized ? 'minimized' : ''}`
+              : ''
+          }
+        >
           <Routes>
 
-            {/* Public */}
-            <Route path="/login" element={
-              <RedirectIfAuthed user={user} authReady={authReady}>
-                <Login onNotify={setNotif} />
-              </RedirectIfAuthed>
-            } />
-            <Route path="/register" element={
-              <RedirectIfAuthed user={user} authReady={authReady}>
-                <Registration onNotify={setNotif} />
-              </RedirectIfAuthed>
-            } />
+            {/* ── Public ─────────────────────────────────────── */}
+            <Route
+              path="/login"
+              element={
+                <RedirectIfAuthed user={user} authReady={authReady}>
+                  <Login onNotify={setNotif} />
+                </RedirectIfAuthed>
+              }
+            />
+            <Route
+              path="/register"
+              element={
+                <RedirectIfAuthed user={user} authReady={authReady}>
+                  <Registration onNotify={setNotif} />
+                </RedirectIfAuthed>
+              }
+            />
 
-            {/* Admin */}
-            <Route path="/admin" element={<AdminRoute user={user}><AdminLayout /></AdminRoute>}>
+            {/* ── Admin ──────────────────────────────────────── */}
+            <Route
+              path="/admin"
+              element={
+                <AdminRoute user={user}>
+                  <AdminLayout />
+                </AdminRoute>
+              }
+            >
+              {/* Dashboard */}
               <Route index element={<AdminDashboard />} />
-              <Route path="books" element={<AdminBooks />} />
-              <Route path="quiz" element={<AdminQuiz />} />
+
+              {/* Content management */}
+              <Route path="books"   element={<AdminBooks />} />
               <Route path="excerpts" element={<AdminExcerpts />} />
+
+              {/* Quiz management — /admin/quiz   → sets & questions editor  */}
+              {/*                   /admin/quiz/grading → essay grading panel */}
+              <Route path="quiz"         element={<AdminQuizSets />} />
+              <Route path="quiz/grading" element={<AdminQuizGrading />} />
+
+              {/* Catch-all inside admin */}
               <Route path="*" element={<Navigate to="/admin" replace />} />
             </Route>
 
-            {/* Protected */}
+            {/* ── Protected (requires login) ──────────────────── */}
             {[
-              { path: '/', element: <HomePage isLoggedIn={isLoggedIn} username={username} /> },
-              { path: '/mga-libro', element: <MgaLibro /> },
-              { path: '/libro/:id', element: <BookPage /> },
-              { path: '/excerpts', element: <ExcerptsPage /> },
-              { path: '/pagsusuri', element: <Pagsusuri /> },
-              { path: '/pagsusulit', element: <Pagsusulit /> },
-              { path: '/magsuri', element: <MagsuriTayo /> },
-              { path: '/profile', element: <ProfilePage onNotify={setNotif} /> },
+              {
+                path: '/',
+                element: <HomePage isLoggedIn={isLoggedIn} username={username} />,
+              },
+              { path: '/mga-libro',  element: <MgaLibro /> },
+              { path: '/libro/:id',  element: <BookPage /> },
+              { path: '/excerpts',   element: <ExcerptsPage /> },
+              { path: '/pagsusuri',  element: <Pagsusuri /> },
+              { path: '/pagsusulit', element: <Pagsuslit /> },   // ← new player quiz
+              { path: '/magsuri',    element: <MagsuriTayo /> },
+              { path: '/teorya',     element: <TeoryangPampanitikan /> },
+              { path: '/profile',    element: <ProfilePage onNotify={setNotif} /> },
             ].map(({ path, element }) => (
               <Route
                 key={path}
@@ -171,10 +202,14 @@ function Layout({ notif, setNotif, user, authReady }) {
               />
             ))}
 
-            {/* Catch-all */}
+            {/* ── Catch-all ───────────────────────────────────── */}
             <Route
               path="*"
-              element={!authReady ? <Blank /> : <Navigate to={user ? '/' : '/login'} replace />}
+              element={
+                !authReady
+                  ? <Blank />
+                  : <Navigate to={user ? '/' : '/login'} replace />
+              }
             />
 
           </Routes>
@@ -189,8 +224,8 @@ function Layout({ notif, setNotif, user, authReady }) {
 
 // ─── Root ─────────────────────────────────────────────────────
 export default function App() {
-  const [notif, setNotif] = useState(null);
-  const [user, setUser] = useState(null);
+  const [notif,     setNotif]     = useState(null);
+  const [user,      setUser]      = useState(null);
   const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {

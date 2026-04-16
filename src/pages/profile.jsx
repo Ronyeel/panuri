@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   updateProfile,
@@ -9,6 +9,7 @@ import {
 } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db } from '../API/firebase'
+import { supabase } from '../API/supabase'
 import './profile.css'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -20,22 +21,25 @@ const PAPEL_CONFIG = {
   tagasuri:   { label: 'Tagasuri',   className: 'prof-badge--tagasuri' },
 }
 
-// ─── Placeholder quiz data (replace with real data later) ─────────────────────
-
-const QUIZ_PLACEHOLDER_ROWS = [
-  { id: 1, title: 'Aralin 1 — Panimula sa Panitikan', score: '—', status: null, date: '—' },
-  { id: 2, title: 'Aralin 2 — Mga Uri ng Tula',       score: '—', status: null, date: '—' },
-  { id: 3, title: 'Aralin 3 — Maikling Kwento',       score: '—', status: null, date: '—' },
-]
+const STATUS_COLORS = {
+  completed:      { bg: '#10B98122', text: '#34d399', border: '#10B98144' },
+  pending_review: { bg: '#F59E0B22', text: '#fbbf24', border: '#F59E0B44' },
+  in_progress:    { bg: '#3B82F622', text: '#60a5fa', border: '#3B82F644' },
+}
+const STATUS_LABELS = {
+  completed:      'Tapos na',
+  pending_review: 'Para sa Pagsusuri',
+  in_progress:    'In Progress',
+}
 
 // ─── Validation ───────────────────────────────────────────────────────────────
 
 function validateName({ username }) {
   const errors = {}
   const v = username.trim()
-  if (!v)             errors.username = 'Kailangan ang username.'
-  else if (v.length < 2)  errors.username = 'Minimum 2 karakter.'
-  else if (v.length > 30) errors.username = 'Maximum 30 karakter.'
+  if (!v)              errors.username = 'Kailangan ang username.'
+  else if (v.length < 2)   errors.username = 'Minimum 2 karakter.'
+  else if (v.length > 30)  errors.username = 'Maximum 30 karakter.'
   return errors
 }
 
@@ -101,22 +105,54 @@ function PassInput({ id, value, onChange, placeholder, autoComplete }) {
 
 // ─── Quiz Summary Section ─────────────────────────────────────────────────────
 
-function QuizSection({ quizData }) {
-  // TODO: Replace with real data from Firestore
-  // quizData should be an array of: { id, title, score, status: 'pass'|'fail', date }
-  // Summary stats should be derived from quizData
+function QuizSection({ userId }) {
+  const [attempts, setAttempts] = useState([])
+  const [loadingQ, setLoadingQ] = useState(true)
 
-  const totalTaken  = 0   // TODO: quizData.length
-  const avgScore    = '—' // TODO: compute from quizData
-  const passRate    = '—' // TODO: compute from quizData
+  const fetchAttempts = useCallback(async () => {
+    if (!userId) { setLoadingQ(false); return }
+    setLoadingQ(true)
+    const { data, error } = await supabase
+      .from('quiz_attempts')
+      .select(`
+        id, score, total_questions, status, finished_at,
+        quiz_sets ( title )
+      `)
+      .eq('user_uid', userId)
+      .not('finished_at', 'is', null)
+      .order('finished_at', { ascending: false })
 
-  const rows = QUIZ_PLACEHOLDER_ROWS // TODO: replace with quizData
+    if (!error) setAttempts(data ?? [])
+    setLoadingQ(false)
+  }, [userId])
+
+  useEffect(() => { fetchAttempts() }, [fetchAttempts])
+
+  // Derived stats
+  const totalTaken = attempts.length
+
+  const avgScore = totalTaken > 0
+    ? (attempts.reduce((sum, a) => {
+        const pct = a.total_questions > 0 ? (a.score / a.total_questions) * 100 : 0
+        return sum + pct
+      }, 0) / totalTaken).toFixed(0) + '%'
+    : '—'
+
+  const passCount = attempts.filter(
+    a => a.total_questions > 0 && (a.score / a.total_questions) >= 0.6
+  ).length
+  const passRate = totalTaken > 0
+    ? ((passCount / totalTaken) * 100).toFixed(0) + '%'
+    : '—'
+
+  const highestScore = totalTaken > 0
+    ? Math.max(...attempts.map(a =>
+        a.total_questions > 0 ? Math.round((a.score / a.total_questions) * 100) : 0
+      )) + '%'
+    : '—'
 
   return (
-    <div
-      className="prof-section prof-section--quiz"
-      style={{ animationDelay: '160ms' }}
-    >
+    <div className="prof-section prof-section--quiz" style={{ animationDelay: '160ms' }}>
       <div className="prof-section-header">
         <div className="prof-section-header-left">
           <span className="prof-section-icon prof-section-icon--blue">
@@ -125,34 +161,40 @@ function QuizSection({ quizData }) {
           <h2 className="prof-section-title">Talaan ng mga Pagsusulit</h2>
         </div>
         <span className="prof-section-badge">
-          {totalTaken === 0 ? 'Walang datos' : `${totalTaken} na pagsusulit`}
+          {loadingQ
+            ? 'Naglo-load…'
+            : totalTaken === 0
+              ? 'Walang datos'
+              : `${totalTaken} na pagsusulit`}
         </span>
       </div>
 
-      {/* ── Summary stats ── */}
+      {/* Stats grid */}
       <div className="prof-quiz-grid">
-        <div className="prof-quiz-stat">
-          <div className="prof-quiz-stat-label">Mga Sinagutan</div>
-          <div className="prof-quiz-stat-val prof-quiz-stat-val--gold">
-            {totalTaken || '—'}
+        {[
+          { label: 'Mga Sinagutan',    val: loadingQ ? '…' : (totalTaken || '—'), gold: true  },
+          { label: 'Karaniwang Marka', val: loadingQ ? '…' : avgScore,            green: true },
+          { label: 'Pinakamataas',     val: loadingQ ? '…' : highestScore                     },
+          { label: 'Passing Rate',     val: loadingQ ? '…' : passRate                         },
+        ].map(s => (
+          <div className="prof-quiz-stat" key={s.label}>
+            <div className="prof-quiz-stat-label">{s.label}</div>
+            <div className={`prof-quiz-stat-val${s.gold ? ' prof-quiz-stat-val--gold' : s.green ? ' prof-quiz-stat-val--green' : ''}`}>
+              {s.val}
+            </div>
           </div>
-        </div>
-        <div className="prof-quiz-stat">
-          <div className="prof-quiz-stat-label">Karaniwang Marka</div>
-          <div className="prof-quiz-stat-val prof-quiz-stat-val--green">
-            {avgScore}
-          </div>
-        </div>
-        <div className="prof-quiz-stat">
-          <div className="prof-quiz-stat-label">Passing Rate</div>
-          <div className="prof-quiz-stat-val">
-            {passRate}
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* ── Table header ── */}
-      {rows.length > 0 ? (
+      {/* Attempts list */}
+      {loadingQ ? (
+        <div style={{
+          display: 'flex', justifyContent: 'center',
+          padding: '2rem 0', color: 'var(--mist, #888)', fontSize: 13,
+        }}>
+          Naglo-load…
+        </div>
+      ) : attempts.length > 0 ? (
         <>
           <div className="prof-quiz-table-header">
             <span className="prof-quiz-table-col">Pamagat ng Pagsusulit</span>
@@ -161,22 +203,48 @@ function QuizSection({ quizData }) {
             <span className="prof-quiz-table-col">Petsa</span>
           </div>
 
-          {/* ── Placeholder rows (replace with real map over quizData) ── */}
-          {rows.map(row => (
-            <div key={row.id} className="prof-quiz-row prof-quiz-row--placeholder">
-              <span className="prof-quiz-row-title">{row.title}</span>
-              <span className="prof-quiz-row-score">{row.score}</span>
-              <span>
-                {row.status
-                  ? <span className={`prof-quiz-row-pill prof-quiz-row-pill--${row.status}`}>
-                      {row.status === 'pass' ? 'Pumasa' : 'Bumagsak'}
+          {attempts.map(a => {
+            const pct    = a.total_questions > 0
+              ? Math.round((a.score / a.total_questions) * 100)
+              : 0
+            const passed = pct >= 60
+            const sc     = STATUS_COLORS[a.status] ?? STATUS_COLORS.completed
+            const date   = a.finished_at
+              ? new Date(a.finished_at).toLocaleDateString('fil-PH', {
+                  month: 'short', day: 'numeric', year: 'numeric',
+                })
+              : '—'
+
+            return (
+              <div key={a.id} className="prof-quiz-row">
+                <span className="prof-quiz-row-title">
+                  {a.quiz_sets?.title ?? '—'}
+                </span>
+                <span className="prof-quiz-row-score">
+                  {a.score}/{a.total_questions}
+                  <span style={{ fontSize: 11, color: 'var(--mist, #888)', marginLeft: 4 }}>
+                    ({pct}%)
+                  </span>
+                </span>
+                <span>
+                  {a.status === 'pending_review' ? (
+                    <span style={{
+                      padding: '2px 8px', borderRadius: 99, fontSize: 11,
+                      fontWeight: 600, whiteSpace: 'nowrap',
+                      background: sc.bg, color: sc.text, border: `1px solid ${sc.border}`,
+                    }}>
+                      {STATUS_LABELS[a.status]}
                     </span>
-                  : <span className="prof-quiz-row-pill" style={{ opacity: 0.3, borderColor: 'rgba(255,255,255,0.1)', color: 'var(--mist)' }}>—</span>
-                }
-              </span>
-              <span className="prof-quiz-row-date">{row.date}</span>
-            </div>
-          ))}
+                  ) : (
+                    <span className={`prof-quiz-row-pill prof-quiz-row-pill--${passed ? 'pass' : 'fail'}`}>
+                      {passed ? 'Pumasa' : 'Bumagsak'}
+                    </span>
+                  )}
+                </span>
+                <span className="prof-quiz-row-date">{date}</span>
+              </div>
+            )
+          })}
         </>
       ) : (
         <div className="prof-quiz-empty">
@@ -206,6 +274,7 @@ export default function ProfilePage({ onNotify }) {
   const [passBusy,  setPassBusy]  = useState(false)
   const [passShake, setPassShake] = useState(false)
 
+  // Fetch Firestore role
   useEffect(() => {
     if (!user) { navigate('/login'); return }
     nameRef.current?.focus()
@@ -219,7 +288,7 @@ export default function ProfilePage({ onNotify }) {
     setTimeout(() => setter(false), 500)
   }
 
-  // ── Update username ─────────────────────────────────────────
+  // ── Update username ─────────────────────────────────────────────────────────
   const handleNameSubmit = async e => {
     e.preventDefault()
     const errs = validateName(nameForm)
@@ -237,7 +306,7 @@ export default function ProfilePage({ onNotify }) {
     }
   }
 
-  // ── Update password ─────────────────────────────────────────
+  // ── Update password ─────────────────────────────────────────────────────────
   const handlePassSubmit = async e => {
     e.preventDefault()
     const errs = validatePass(passForm)
@@ -262,7 +331,7 @@ export default function ProfilePage({ onNotify }) {
     }
   }
 
-  // ── Sign out ────────────────────────────────────────────────
+  // ── Sign out ─────────────────────────────────────────────────────────────────
   const handleSignOut = async () => {
     await signOut(auth)
     navigate('/')
@@ -318,7 +387,8 @@ export default function ProfilePage({ onNotify }) {
           </button>
         </div>
 
-        {/* Stats row */}
+        {/* Stats row — driven by QuizSection's data via lifted state if desired,
+            or kept as static placeholders until you need the top-level stats too */}
         <div className="prof-stats-row">
           {[
             { label: 'Mga Pagsusulit',  value: '—', note: 'na sinagutan' },
@@ -338,10 +408,7 @@ export default function ProfilePage({ onNotify }) {
         <div className="prof-main-grid">
 
           {/* ── Username ── */}
-          <div
-            className="prof-section"
-            style={{ animationDelay: '0ms' }}
-          >
+          <div className="prof-section" style={{ animationDelay: '0ms' }}>
             <div className="prof-section-header">
               <div className="prof-section-header-left">
                 <span className="prof-section-icon"><UserIcon /></span>
@@ -378,10 +445,7 @@ export default function ProfilePage({ onNotify }) {
           </div>
 
           {/* ── Password ── */}
-          <div
-            className="prof-section prof-section--password"
-            style={{ animationDelay: '80ms' }}
-          >
+          <div className="prof-section prof-section--password" style={{ animationDelay: '80ms' }}>
             <div className="prof-section-header">
               <div className="prof-section-header-left">
                 <span className="prof-section-icon prof-section-icon--red"><LockIcon /></span>
@@ -427,13 +491,11 @@ export default function ProfilePage({ onNotify }) {
             </form>
           </div>
 
-          {/* ── Quiz Summary ── */}
-          <QuizSection quizData={[]} />
+          {/* ── Quiz Summary — passes Firebase UID to fetch this user's data ── */}
+          <QuizSection userId={user.uid} />
 
         </div>
       </div>
-
-      {/* Toast portal — wire this up to your toast system */}
     </div>
   )
 }
