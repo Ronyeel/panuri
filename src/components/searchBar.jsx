@@ -1,8 +1,12 @@
 // SearchBar.jsx
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useSearch } from '../API/useSearch'
 import './searchBar.css'
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Icons
+// ─────────────────────────────────────────────────────────────────────────────
 
 function SearchIcon() {
   return (
@@ -23,9 +27,10 @@ function SpinnerIcon() {
   )
 }
 
-/**
- * ResultItem — a single dropdown row
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// ResultItem — a single dropdown row
+// ─────────────────────────────────────────────────────────────────────────────
+
 function ResultItem({ item, isActive, onMouseEnter, onClick }) {
   return (
     <li
@@ -48,9 +53,10 @@ function ResultItem({ item, isActive, onMouseEnter, onClick }) {
   )
 }
 
-/**
- * SearchDropdown — the results list
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// SearchDropdown — the results list
+// ─────────────────────────────────────────────────────────────────────────────
+
 function SearchDropdown({ results, loading, error, query, activeIndex, onMouseEnter, onSelect }) {
   if (!query.trim()) return null
 
@@ -87,12 +93,47 @@ function SearchDropdown({ results, loading, error, query, activeIndex, onMouseEn
   )
 }
 
-/**
- * useSearchBar — encapsulates query state, keyboard nav, and submit logic
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// useScrollToHash — scrolls to a DOM element matching location.hash
+// Used so that /excerpts#<id> smoothly scrolls to the right excerpt card
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function useScrollToHash() {
+  const location = useLocation()
+
+  useEffect(() => {
+    if (!location.hash) return
+
+    const id = location.hash.replace('#', '')
+
+    // Retry a few times — the page may still be rendering
+    let attempts = 0
+    const MAX_ATTEMPTS = 10
+    const INTERVAL_MS  = 100
+
+    const interval = setInterval(() => {
+      const el = document.getElementById(id)
+
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        clearInterval(interval)
+      }
+
+      attempts++
+      if (attempts >= MAX_ATTEMPTS) clearInterval(interval)
+    }, INTERVAL_MS)
+
+    return () => clearInterval(interval)
+  }, [location.hash])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// useSearchBar — encapsulates query state, keyboard nav, and submit logic
+// ─────────────────────────────────────────────────────────────────────────────
+
 function useSearchBar(onClose) {
-  const [query, setQuery] = useState('')
-  const [focused, setFocused] = useState(false)
+  const [query,       setQuery]       = useState('')
+  const [focused,     setFocused]     = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
 
   const navigate = useNavigate()
@@ -116,7 +157,8 @@ function useSearchBar(onClose) {
     if (activeIndex >= 0 && results[activeIndex]) {
       navigateTo(results[activeIndex].path)
     } else if (query.trim()) {
-      navigateTo(`/search?q=${encodeURIComponent(query.trim())}`)
+      // Fallback: go to /mga-libro with a search query param
+      navigateTo(`/mga-libro?q=${encodeURIComponent(query.trim())}`)
     }
   }
 
@@ -140,10 +182,10 @@ function useSearchBar(onClose) {
   }, [results])
 
   return {
-    query, setQuery,
-    focused, setFocused,
+    query,       setQuery,
+    focused,     setFocused,
     activeIndex, setActiveIndex,
-    results, loading, error,
+    results,     loading,   error,
     showDropdown,
     handleSelect,
     handleSubmit,
@@ -152,18 +194,20 @@ function useSearchBar(onClose) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SearchBar — main export
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function SearchBar({ mobileOpen: mobileOpenProp, onMobileToggle }) {
-  const isControlled = mobileOpenProp !== undefined
+  const isControlled  = mobileOpenProp !== undefined
   const [internalOpen, setInternalOpen] = useState(false)
 
-  const mobileOpen = isControlled ? mobileOpenProp : internalOpen
+  const mobileOpen   = isControlled ? mobileOpenProp : internalOpen
   const toggleMobile = onMobileToggle ?? (() => setInternalOpen(v => !v))
 
   const mobileInputRef = useRef(null)
 
   const desktop = useSearchBar()
-  const mobile = useSearchBar(() => {
+  const mobile  = useSearchBar(() => {
     if (!isControlled) setInternalOpen(false)
     else onMobileToggle?.()
   })
@@ -184,7 +228,7 @@ export default function SearchBar({ mobileOpen: mobileOpenProp, onMobileToggle }
 
   return (
     <>
-      {/* Desktop */}
+      {/* ── Desktop ─────────────────────────────────────────────── */}
       <div className="navbar-search-wrapper">
         <form className="navbar-search" onSubmit={desktop.handleSubmit} autoComplete="off">
           <span className="navbar-search-icon">
@@ -200,6 +244,9 @@ export default function SearchBar({ mobileOpen: mobileOpenProp, onMobileToggle }
             onFocus={() => desktop.setFocused(true)}
             onBlur={() => setTimeout(() => desktop.setFocused(false), 150)}
             onKeyDown={desktop.handleKeyDown}
+            aria-label="Maghanap"
+            aria-autocomplete="list"
+            aria-haspopup="listbox"
           />
         </form>
 
@@ -216,19 +263,24 @@ export default function SearchBar({ mobileOpen: mobileOpenProp, onMobileToggle }
         )}
       </div>
 
-      {/* Mobile button */}
+      {/* ── Mobile toggle button ─────────────────────────────────── */}
       <button
         className="navbar-search-btn"
+        aria-label="Buksan ang paghahanap"
         aria-expanded={mobileOpen}
         onClick={toggleMobile}
       >
         <SearchIcon />
       </button>
 
-      {/* Mobile panel */}
+      {/* ── Mobile panel ─────────────────────────────────────────── */}
       <div className={`navbar-search-mobile ${mobileOpen ? 'navbar-search-mobile--open' : ''}`}>
         <div className="navbar-search-mobile-inner">
-          <form onSubmit={mobile.handleSubmit} autoComplete="off" style={{ display: 'flex', flex: 1, gap: '0.5rem' }}>
+          <form
+            onSubmit={mobile.handleSubmit}
+            autoComplete="off"
+            style={{ display: 'flex', flex: 1, gap: '0.5rem' }}
+          >
             <span className="navbar-search-icon">
               {mobile.loading ? <SpinnerIcon /> : <SearchIcon />}
             </span>
@@ -243,9 +295,12 @@ export default function SearchBar({ mobileOpen: mobileOpenProp, onMobileToggle }
               onFocus={() => mobile.setFocused(true)}
               onBlur={() => setTimeout(() => mobile.setFocused(false), 150)}
               onKeyDown={mobile.handleKeyDown}
+              aria-label="Maghanap"
+              aria-autocomplete="list"
+              aria-haspopup="listbox"
             />
 
-            <button type="button" onClick={handleMobileClose}>
+            <button type="button" onClick={handleMobileClose} aria-label="Isara">
               ✕
             </button>
           </form>

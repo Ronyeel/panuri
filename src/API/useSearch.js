@@ -25,7 +25,7 @@ function searchStatic(query) {
         title:    item.title,
         subtitle: item.author ?? '',
         category: 'Mga Libro',
-        path:     `/mga-libro/${item.id}`,
+        path:     `/libro/${item.id}`,   // ✅ matches /libro/:id in App.jsx
       })
     }
   }
@@ -73,7 +73,7 @@ async function searchSupabase(query) {
       title:    item.title,
       subtitle: item.author ?? '',
       category: 'Mga Libro',
-      path:     `/mga-libro/${item.id}`,
+      path:     `/libro/${item.id}`,   // ✅ matches /libro/:id in App.jsx
     }))
 
     // ── MAP EXCERPTS ─────────────────────────
@@ -84,7 +84,7 @@ async function searchSupabase(query) {
         ? `ni ${item.author}${item.tag ? ` · ${item.tag}` : ''}`
         : item.tag ?? '',
       category: 'Excerpt',
-      path:     `/excerpts/${item.id}`,
+      path:     `/excerpts#${item.id}`,  // ✅ lands on /excerpts and scrolls to item
     }))
 
     // ── MAP QUIZ ─────────────────────────────
@@ -95,7 +95,7 @@ async function searchSupabase(query) {
         ? `${item.difficulty}${item.category ? ` · ${item.category}` : ''}`
         : item.category ?? '',
       category: 'Quiz',
-      path:     `/quiz/${item.id}`,
+      path:     `/pagsusulit`,   // ✅ matches /pagsusulit in App.jsx
     }))
 
     return [...books, ...excerpts, ...quiz]
@@ -141,7 +141,7 @@ export function useSearch(query) {
 
         if (abortRef.current) return
 
-        // Deduplicate by id, static results take priority
+        // Deduplicate by id — static results take priority
         const seen   = new Set()
         const merged = []
 

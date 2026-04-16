@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../API/supabase'
 import FlipBook from '../pages/FlipBook'
 import './Excerpt.css'
@@ -28,7 +28,7 @@ function normalizeExcerpt(row) {
   }
 }
 
-// ── Partial title match — true if either string contains the other ────────────
+// ── Partial title match ───────────────────────────────────────────────────────
 function titlesMatch(a = '', b = '') {
   const clean = s => s.toLowerCase().trim()
   const ca = clean(a)
@@ -54,6 +54,7 @@ function ExcerptCard({ item, index, isActive, onClick, onRead }) {
   return (
     <article
       ref={ref}
+      id={String(item.id)}
       className={[
         'exc-card',
         isActive ? 'exc-card--active'  : '',
@@ -66,7 +67,8 @@ function ExcerptCard({ item, index, isActive, onClick, onRead }) {
       onKeyDown={e => e.key === 'Enter' && onClick(item.id)}
       aria-expanded={isActive}
     >
-      <div className="exc-card__glow" aria-hidden="true" />
+      <div className="exc-card__glow"   aria-hidden="true" />
+      <div className="exc-card__corner" aria-hidden="true" />
 
       {/* Cover */}
       <div className="exc-card__cover-wrap">
@@ -113,11 +115,7 @@ function ExcerptCard({ item, index, isActive, onClick, onRead }) {
               if (hasPdf) onRead(item)
             }}
           >
-            {hasPdf
-              ? item.is_excerpt
-                ? 'Basahin ang Sipi →'
-                : 'Basahin ang Buong Aklat →'
-              : 'Wala pang PDF'}
+            {hasPdf ? 'Basahin ang Sipi →' : 'Wala pang PDF'}
           </button>
         </div>
       </div>
@@ -138,6 +136,8 @@ function ExcerptCard({ item, index, isActive, onClick, onRead }) {
 // ── Page component ────────────────────────────────────────────────────────────
 export default function ExcerptsPage() {
   const navigate  = useNavigate()
+  const location  = useLocation()
+
   const [excerpts,   setExcerpts]   = useState([])
   const [loading,    setLoading]    = useState(true)
   const [filter,     setFilter]     = useState('Lahat')
@@ -146,6 +146,7 @@ export default function ExcerptsPage() {
   const headerRef     = useRef(null)
   const headerVisible = useIntersection(headerRef)
 
+  // ── Fetch ───────────────────────────────────────────────────────────────────
   useEffect(() => {
     async function fetchExcerpts() {
       const { data, error } = await supabase
@@ -164,14 +165,9 @@ export default function ExcerptsPage() {
         if (bookParam) {
           const decoded = decodeURIComponent(bookParam)
           const match   = normalized.find(e => titlesMatch(e.bookTitle, decoded))
-
           if (match) {
             setActiveId(match.id)
-
-            // If ?read=1 and the matched excerpt has a PDF, open FlipBook directly
-            if (openRead && match.pdf) {
-              setReaderBook(match)
-            }
+            if (openRead && match.pdf) setReaderBook(match)
           }
         }
       }
@@ -181,15 +177,35 @@ export default function ExcerptsPage() {
     fetchExcerpts()
   }, [])
 
-  const tags = ['Lahat', ...Array.from(new Set(excerpts.map(e => e.tag).filter(Boolean)))]
+  // ── Hash navigation — from search bar (/excerpts#<id>) ─────────────────────
+  useEffect(() => {
+    if (!location.hash || loading) return
 
-  const filtered = filter === 'Lahat'
-    ? excerpts
-    : excerpts.filter(e => e.tag === filter)
+    const hashId = location.hash.replace('#', '')
+    const match  = excerpts.find(e => String(e.id) === hashId)
 
-  const toggle = (id) => setActiveId(prev => prev === id ? null : id)
+    if (match) {
+      setActiveId(match.id)
 
-  // ── FlipBook full-screen ──────────────────────────────────────
+      let attempts = 0
+      const interval = setInterval(() => {
+        const el = document.getElementById(hashId)
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          clearInterval(interval)
+        }
+        if (++attempts >= 15) clearInterval(interval)
+      }, 100)
+
+      return () => clearInterval(interval)
+    }
+  }, [location.hash, loading, excerpts])
+
+  const tags     = ['Lahat', ...Array.from(new Set(excerpts.map(e => e.tag).filter(Boolean)))]
+  const filtered = filter === 'Lahat' ? excerpts : excerpts.filter(e => e.tag === filter)
+  const toggle   = (id) => setActiveId(prev => prev === id ? null : id)
+
+  // ── FlipBook ────────────────────────────────────────────────────────────────
   if (readerBook) {
     return (
       <FlipBook
@@ -202,8 +218,8 @@ export default function ExcerptsPage() {
 
   return (
     <main className="exc-page">
-
       <div className="exc-page__texture" aria-hidden="true" />
+      <div className="exc-page__diag"    aria-hidden="true" />
 
       <div className="exc-page__inner">
 
@@ -222,13 +238,13 @@ export default function ExcerptsPage() {
         >
           <div className="exc-eyebrow">
             <span className="exc-eyebrow__line" />
-            <span className="exc-eyebrow__text">Mga Piling Sipi</span>
+            <span className="exc-eyebrow__text">Excerpts</span>
             <span className="exc-eyebrow__line" />
           </div>
 
           <h1 className="exc-heading">
-            <span className="exc-heading__white">Tikman ang</span>{' '}
-            <span className="exc-heading__red">Kwento</span>
+            <span className="exc-heading__light">Silipin ang mga</span>{' '}
+            <span className="exc-heading__gold">Kwento</span>
           </h1>
 
           <p className="exc-subheading">
@@ -255,7 +271,7 @@ export default function ExcerptsPage() {
           </div>
         ) : excerpts.length === 0 ? (
           <div className="exc-loading">
-            <p style={{ color: 'rgba(240,236,228,0.3)' }}>Walang mga sipi sa ngayon.</p>
+            <p>Walang mga sipi sa ngayon.</p>
           </div>
         ) : (
           <div className="exc-grid">
@@ -277,7 +293,6 @@ export default function ExcerptsPage() {
       <div className="exc-rule" aria-hidden="true">
         <span /><span className="rule-diamond" /><span />
       </div>
-
     </main>
   )
 }

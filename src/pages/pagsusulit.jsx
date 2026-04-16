@@ -1,9 +1,10 @@
 // Pagsuslit.jsx
 // Player-facing quiz. Supports multiple_choice, true_false, and essay.
-// Saves attempts + responses to Supabase for admin review and grading.
+// Saves attempts + responses to Supabase. Realtime: quiz sets refresh live.
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../API/supabase'
+import { auth } from '../API/firebase'
 import './pagsusulit.css'
 
 const LETTERS = ['A', 'B', 'C', 'D']
@@ -24,14 +25,14 @@ export default function Pagsuslit() {
   const [loading, setLoading] = useState(true)
 
   // Active quiz state
-  const [activeSetId,  setActiveSetId]  = useState(null)
-  const [questions,    setQuestions]    = useState([])
-  const [currentIndex, setCurrentIndex] = useState(0)
+  const [activeSetId,   setActiveSetId]   = useState(null)
+  const [questions,     setQuestions]     = useState([])
+  const [currentIndex,  setCurrentIndex]  = useState(0)
 
   // Per-question answer state
-  const [selectedIdx, setSelectedIdx] = useState(null)   // MC: index int
-  const [selectedTF,  setSelectedTF]  = useState(null)   // TF: true | false
-  const [essayText,   setEssayText]   = useState('')     // essay
+  const [selectedIdx, setSelectedIdx] = useState(null)
+  const [selectedTF,  setSelectedTF]  = useState(null)
+  const [essayText,   setEssayText]   = useState('')
   const [answered,    setAnswered]    = useState(false)
   const [score,       setScore]       = useState(0)
 
@@ -41,17 +42,23 @@ export default function Pagsuslit() {
   const [pendingSetId, setPendingSetId] = useState(null)
 
   // Attempt tracking
-  const attemptIdRef  = useRef(null)
-  const responsesRef  = useRef([]) // { question_id, answer_text, is_correct, needs_grading }
+  const attemptIdRef = useRef(null)
+  const responsesRef = useRef([])
 
   const [finished,   setFinished]   = useState(false)
   const [hasPending, setHasPending] = useState(false)
 
-  const essayRef = useRef(null)
+  // Pre-fill player name from Firebase
+  useEffect(() => {
+    const user = auth.currentUser
+    if (user?.displayName) setPlayerName(user.displayName)
+  }, [])
 
-  // ── Fetch sets ────────────────────────────────────────────────────────────
+  // ── Fetch + realtime subscribe to quiz sets ───────────────────────────────
 
   useEffect(() => {
+    let channel
+
     const load = async () => {
       setLoading(true)
       const { data, error } = await supabase
@@ -61,14 +68,25 @@ export default function Pagsuslit() {
 
       if (!error && data?.length) {
         setSets(data)
-        setPendingSetId(data[0].id)
+        setPendingSetId(prev => prev ?? data[0].id)
       }
       setLoading(false)
     }
+
     load()
+
+    // Realtime: reflect admin changes to sets instantly
+    channel = supabase
+      .channel('quiz_sets_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_sets' }, () => {
+        load()
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
   }, [])
 
-  // ── Start a quiz (after name entry) ──────────────────────────────────────
+  // ── Start a quiz ──────────────────────────────────────────────────────────
 
   const startQuiz = useCallback(async (setId, name) => {
     const { data, error } = await supabase
@@ -79,10 +97,13 @@ export default function Pagsuslit() {
 
     if (error || !data?.length) return
 
+    const uid = auth.currentUser?.uid ?? null
+
     const { data: attempt, error: aErr } = await supabase
       .from('quiz_attempts')
       .insert([{
         set_id:          setId,
+        user_uid:        uid,
         display_name:    name || 'Anonymous',
         total_questions: data.length,
         status:          'in_progress',
@@ -92,8 +113,8 @@ export default function Pagsuslit() {
 
     if (aErr) { console.error(aErr); return }
 
-    attemptIdRef.current  = attempt.id
-    responsesRef.current  = []
+    attemptIdRef.current = attempt.id
+    responsesRef.current = []
 
     setQuestions(data)
     setActiveSetId(setId)
@@ -114,19 +135,14 @@ export default function Pagsuslit() {
   }
 
   const handleNameSubmit = () => {
-    if (!pendingSetId) return
-    startQuiz(pendingSetId, playerName.trim())
+    if (pendingSetId) startQuiz(pendingSetId, playerName.trim())
   }
 
   // ── Current question helpers ──────────────────────────────────────────────
 
   const question    = questions[currentIndex]
   const total       = questions.length
-  const progressPct = total > 0
-    ? ((currentIndex + (answered ? 1 : 0)) / total) * 100
-    : 0
-
-  // ── Handle answer selection ───────────────────────────────────────────────
+  const progressPct = total > 0 ? ((currentIndex + (answered ? 1 : 0)) / total) * 100 : 0
 
   const handleChoose   = useCallback((idx) => { if (!answered) setSelectedIdx(idx) }, [answered])
   const handleChooseTF = useCallback((val) => { if (!answered) setSelectedTF(val)  }, [answered])
@@ -136,9 +152,7 @@ export default function Pagsuslit() {
   const handleSubmitAnswer = useCallback(() => {
     if (!question) return
 
-    let answerText   = ''
-    let isCorrect    = null
-    let needsGrading = false
+    let answerText = '', isCorrect = null, needsGrading = false
 
     if (question.type === 'multiple_choice') {
       if (selectedIdx === null) return
@@ -167,11 +181,10 @@ export default function Pagsuslit() {
     })
   }, [question, selectedIdx, selectedTF, essayText])
 
-  // ── Move to next question / finish ────────────────────────────────────────
+  // ── Next question / finish ────────────────────────────────────────────────
 
   const handleNext = useCallback(async () => {
     if (currentIndex + 1 >= total) {
-      // Save all responses
       const { error: rErr } = await supabase
         .from('quiz_responses')
         .insert(responsesRef.current)
@@ -201,8 +214,6 @@ export default function Pagsuslit() {
     }
   }, [currentIndex, total])
 
-  // ── Retry ─────────────────────────────────────────────────────────────────
-
   const handleRetry = () => {
     setActiveSetId(null)
     setFinished(false)
@@ -210,17 +221,12 @@ export default function Pagsuslit() {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  //  Render
-  // ─────────────────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
       <section className="pagsuslit" aria-label="Pagsuslit — Pagsusulit">
         <div className="pagsuslit-inner">
-          <div style={{
-            display: 'flex', justifyContent: 'center',
-            padding: '4rem 0', color: 'var(--text-muted)',
-          }}>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem 0', color: 'var(--text-muted)' }}>
             Naglo-load ng mga tanong…
           </div>
         </div>
@@ -232,10 +238,7 @@ export default function Pagsuslit() {
     return (
       <section className="pagsuslit" aria-label="Pagsuslit — Pagsusulit">
         <div className="pagsuslit-inner">
-          <p style={{
-            textAlign: 'center', padding: '4rem 0',
-            color: 'var(--text-muted)', fontFamily: "'Crimson Text', serif",
-          }}>
+          <p style={{ textAlign: 'center', padding: '4rem 0', color: 'var(--text-muted)', fontFamily: "'Crimson Text', serif" }}>
             Wala pang mga tanong. Bumalik na lang mamaya!
           </p>
         </div>
@@ -256,7 +259,7 @@ export default function Pagsuslit() {
 
         {/* ── Name prompt modal ── */}
         {namePrompt && (
-          <div className="pagsuslit-name-backdrop">
+          <div className="pagsuslit-name-backdrop" onClick={e => { if (e.target === e.currentTarget) setNamePrompt(false) }}>
             <div className="pagsuslit-name-modal">
               <h3 style={{ margin: '0 0 6px', color: 'var(--text-primary, #e0e0e0)', fontSize: 18 }}>
                 Ano ang iyong pangalan?
@@ -273,18 +276,10 @@ export default function Pagsuslit() {
                 autoFocus
               />
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                <button
-                  className="pagsuslit-other-btn"
-                  style={{ flex: 1 }}
-                  onClick={() => setNamePrompt(false)}
-                >
+                <button className="pagsuslit-other-btn" style={{ flex: 1 }} onClick={() => setNamePrompt(false)}>
                   Kanselahin
                 </button>
-                <button
-                  className="pagsuslit-retry-btn"
-                  style={{ flex: 2 }}
-                  onClick={handleNameSubmit}
-                >
+                <button className="pagsuslit-retry-btn" style={{ flex: 2 }} onClick={handleNameSubmit}>
                   Simulan →
                 </button>
               </div>
@@ -296,11 +291,7 @@ export default function Pagsuslit() {
         {!activeSetId && (
           <nav className="pagsuslit-selector" aria-label="Mga set ng pagsusulit">
             {sets.map(s => (
-              <button
-                key={s.id}
-                className="pagsuslit-selector-btn"
-                onClick={() => handleSelectSet(s.id)}
-              >
+              <button key={s.id} className="pagsuslit-selector-btn" onClick={() => handleSelectSet(s.id)}>
                 {s.title}
                 {s.category && (
                   <span style={{ display: 'block', fontSize: 11, opacity: 0.6, marginTop: 2 }}>
@@ -321,8 +312,7 @@ export default function Pagsuslit() {
               <div className="pagsuslit-results">
                 <div className="pagsuslit-results-label">Iyong Puntos</div>
                 <div className="pagsuslit-results-score">
-                  {score}
-                  <span className="pagsuslit-results-denom">/{total}</span>
+                  {score}<span className="pagsuslit-results-denom">/{total}</span>
                 </div>
                 <p className="pagsuslit-results-verdict">{getVerdict(score, total)}</p>
 
@@ -334,21 +324,14 @@ export default function Pagsuslit() {
                     fontSize: 13, textAlign: 'center', lineHeight: 1.6,
                   }}>
                     May mga sanaysay na kailangan pang suriin ng admin.<br />
-                    <span style={{ opacity: 0.7 }}>
-                      Ang iyong puntos ay mababago pagkatapos ng pagsusuri.
-                    </span>
+                    <span style={{ opacity: 0.7 }}>Ang iyong puntos ay mababago pagkatapos ng pagsusuri.</span>
                   </div>
                 )}
 
                 <div className="pagsuslit-results-actions">
-                  <button className="pagsuslit-retry-btn" onClick={handleRetry}>
-                    ↩ Ulit
-                  </button>
+                  <button className="pagsuslit-retry-btn" onClick={handleRetry}>↩ Ulit</button>
                   {sets.length > 1 && (
-                    <button
-                      className="pagsuslit-other-btn"
-                      onClick={() => { setActiveSetId(null); setFinished(false) }}
-                    >
+                    <button className="pagsuslit-other-btn" onClick={() => { setActiveSetId(null); setFinished(false) }}>
                       Ibang Set
                     </button>
                   )}
@@ -359,17 +342,8 @@ export default function Pagsuslit() {
               <>
                 {/* Progress bar */}
                 <div className="pagsuslit-progress">
-                  <div
-                    className="pagsuslit-progress-track"
-                    role="progressbar"
-                    aria-valuenow={currentIndex + 1}
-                    aria-valuemin={1}
-                    aria-valuemax={total}
-                  >
-                    <div
-                      className="pagsuslit-progress-fill"
-                      style={{ width: `${progressPct}%` }}
-                    />
+                  <div className="pagsuslit-progress-track" role="progressbar" aria-valuenow={currentIndex + 1} aria-valuemin={1} aria-valuemax={total}>
+                    <div className="pagsuslit-progress-fill" style={{ width: `${progressPct}%` }} />
                   </div>
                   <div className="pagsuslit-progress-label">
                     <span>{currentIndex + 1}</span> / {total}
@@ -380,29 +354,11 @@ export default function Pagsuslit() {
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
                   <span style={{
                     padding: '2px 10px', borderRadius: 99, fontSize: 11, fontWeight: 600,
-                    background: question.type === 'essay'
-                      ? '#8B5CF622'
-                      : question.type === 'true_false'
-                        ? '#10B98122'
-                        : '#3B82F622',
-                    color: question.type === 'essay'
-                      ? '#a78bfa'
-                      : question.type === 'true_false'
-                        ? '#34d399'
-                        : '#60a5fa',
-                    border: `1px solid ${
-                      question.type === 'essay'
-                        ? '#8B5CF644'
-                        : question.type === 'true_false'
-                          ? '#10B98144'
-                          : '#3B82F644'
-                    }`,
+                    background: question.type === 'essay' ? '#8B5CF622' : question.type === 'true_false' ? '#10B98122' : '#3B82F622',
+                    color:      question.type === 'essay' ? '#a78bfa'   : question.type === 'true_false' ? '#34d399'   : '#60a5fa',
+                    border: `1px solid ${question.type === 'essay' ? '#8B5CF644' : question.type === 'true_false' ? '#10B98144' : '#3B82F644'}`,
                   }}>
-                    {question.type === 'essay'
-                      ? 'Sanaysay'
-                      : question.type === 'true_false'
-                        ? 'Tama o Mali'
-                        : 'Multiple Choice'}
+                    {question.type === 'essay' ? 'Sanaysay' : question.type === 'true_false' ? 'Tama o Mali' : 'Multiple Choice'}
                   </span>
                 </div>
 
@@ -412,7 +368,7 @@ export default function Pagsuslit() {
                   <p className="pagsuslit-question-text">{question.question}</p>
                 </div>
 
-                {/* ── Multiple choice ── */}
+                {/* Multiple choice */}
                 {question.type === 'multiple_choice' && (
                   <div className="pagsuslit-choices" role="list">
                     {(question.choices ?? []).map((choice, idx) => {
@@ -425,8 +381,7 @@ export default function Pagsuslit() {
                       }
                       return (
                         <button
-                          key={idx}
-                          role="listitem"
+                          key={idx} role="listitem"
                           className={`pagsuslit-choice${stateClass}`}
                           onClick={() => handleChoose(idx)}
                           disabled={answered}
@@ -440,7 +395,7 @@ export default function Pagsuslit() {
                   </div>
                 )}
 
-                {/* ── True / False ── */}
+                {/* True / False */}
                 {question.type === 'true_false' && (
                   <div className="pagsuslit-choices" role="list">
                     {[true, false].map((val, idx) => {
@@ -453,34 +408,27 @@ export default function Pagsuslit() {
                       }
                       return (
                         <button
-                          key={String(val)}
-                          role="listitem"
+                          key={String(val)} role="listitem"
                           className={`pagsuslit-choice${stateClass}`}
                           onClick={() => handleChooseTF(val)}
                           disabled={answered}
                           aria-pressed={selectedTF === val}
                         >
-                          <span className="pagsuslit-choice-letter">
-                            {idx === 0 ? 'T' : 'F'}
-                          </span>
-                          <span className="pagsuslit-choice-text">
-                            {val ? 'Tama (True)' : 'Mali (False)'}
-                          </span>
+                          <span className="pagsuslit-choice-letter">{idx === 0 ? 'T' : 'F'}</span>
+                          <span className="pagsuslit-choice-text">{val ? 'Tama (True)' : 'Mali (False)'}</span>
                         </button>
                       )
                     })}
                   </div>
                 )}
 
-                {/* ── Essay ── */}
+                {/* Essay */}
                 {question.type === 'essay' && (
                   <div style={{ marginTop: 16 }}>
                     {!answered ? (
                       <textarea
-                        ref={essayRef}
                         value={essayText}
                         onChange={e => setEssayText(e.target.value)}
-                        disabled={answered}
                         rows={5}
                         style={{
                           width: '100%', boxSizing: 'border-box',
@@ -490,28 +438,18 @@ export default function Pagsuslit() {
                           color: 'var(--text-primary, #e0e0e0)',
                           fontSize: 15, lineHeight: 1.7,
                           padding: '12px 14px',
-                          resize: 'vertical',
-                          fontFamily: 'inherit',
-                          outline: 'none',
+                          resize: 'vertical', fontFamily: 'inherit', outline: 'none',
                           transition: 'border-color 0.2s',
                         }}
-                        onFocus={e => {
-                          e.target.style.borderColor = 'rgba(99,102,241,0.6)'
-                        }}
-                        onBlur={e => {
-                          e.target.style.borderColor = 'var(--border, #ffffff18)'
-                        }}
+                        onFocus={e  => { e.target.style.borderColor = 'rgba(99,102,241,0.6)' }}
+                        onBlur={e   => { e.target.style.borderColor = 'var(--border, #ffffff18)' }}
                         placeholder="Isulat ang iyong sagot dito..."
                       />
                     ) : (
                       <div style={{
-                        padding: '12px 14px',
-                        background: '#6366f112',
-                        border: '1.5px solid #6366f130',
-                        borderRadius: 10,
-                        color: '#c4b5fd',
-                        fontSize: 14,
-                        lineHeight: 1.7,
+                        padding: '12px 14px', background: '#6366f112',
+                        border: '1.5px solid #6366f130', borderRadius: 10,
+                        color: '#c4b5fd', fontSize: 14, lineHeight: 1.7,
                       }}>
                         {essayText}
                       </div>
@@ -523,26 +461,16 @@ export default function Pagsuslit() {
                 {answered && question.explanation && question.type !== 'essay' && (
                   <div className="pagsuslit-explanation" role="alert">
                     <span className="pagsuslit-explanation-icon">
-                      {(selectedIdx === question.correct_index ||
-                        selectedTF  === question.correct_tf)
-                        ? '✓' : '✕'}
+                      {(selectedIdx === question.correct_index || selectedTF === question.correct_tf) ? '✓' : '✕'}
                     </span>
-                    <p className="pagsuslit-explanation-text">
-                      {question.explanation}
-                    </p>
+                    <p className="pagsuslit-explanation-text">{question.explanation}</p>
                   </div>
                 )}
 
                 {/* Essay submitted notice */}
                 {answered && question.type === 'essay' && (
-                  <div
-                    className="pagsuslit-explanation"
-                    role="alert"
-                    style={{ borderColor: '#6366f144', background: '#6366f112' }}
-                  >
-                    <span className="pagsuslit-explanation-icon" style={{ color: '#a78bfa' }}>
-                      ✎
-                    </span>
+                  <div className="pagsuslit-explanation" role="alert" style={{ borderColor: '#6366f144', background: '#6366f112' }}>
+                    <span className="pagsuslit-explanation-icon" style={{ color: '#a78bfa' }}>✎</span>
                     <p className="pagsuslit-explanation-text" style={{ color: '#c4b5fd' }}>
                       Ang iyong sagot ay nai-submit na. Susuriin ito ng admin.
                     </p>
@@ -551,9 +479,7 @@ export default function Pagsuslit() {
 
                 {/* Card footer */}
                 <div className="pagsuslit-card-footer">
-                  <div className="pagsuslit-score-inline">
-                    Puntos: <span>{score}</span>
-                  </div>
+                  <div className="pagsuslit-score-inline">Puntos: <span>{score}</span></div>
                   {!answered ? (
                     <button
                       className="pagsuslit-next-btn"
@@ -575,10 +501,7 @@ export default function Pagsuslit() {
               </>
 
             ) : (
-              <p style={{
-                color: 'var(--text-muted)', fontFamily: "'Crimson Text', serif",
-                textAlign: 'center', padding: '2rem 0',
-              }}>
+              <p style={{ color: 'var(--text-muted)', fontFamily: "'Crimson Text', serif", textAlign: 'center', padding: '2rem 0' }}>
                 Walang mga tanong para sa set na ito.
               </p>
             )}
@@ -586,7 +509,6 @@ export default function Pagsuslit() {
         )}
       </div>
 
-      {/* Inline styles for modals + selected state */}
       <style>{`
         .pagsuslit-name-backdrop {
           position: fixed; inset: 0; z-index: 100;
@@ -597,25 +519,18 @@ export default function Pagsuslit() {
         .pagsuslit-name-modal {
           background: var(--bg-card, #141428);
           border: 1px solid rgba(255,255,255,0.1);
-          border-radius: 16px;
-          padding: 28px 24px;
+          border-radius: 16px; padding: 28px 24px;
           width: 100%; max-width: 380px;
         }
         .pagsuslit-name-input {
           width: 100%; box-sizing: border-box;
           background: var(--bg-input, #1a1a2e);
           border: 1.5px solid rgba(255,255,255,0.15);
-          border-radius: 8px;
-          color: var(--text-primary, #e0e0e0);
-          font-size: 15px;
-          padding: 10px 14px;
-          outline: none;
-          font-family: inherit;
-          transition: border-color 0.2s;
+          border-radius: 8px; color: var(--text-primary, #e0e0e0);
+          font-size: 15px; padding: 10px 14px;
+          outline: none; font-family: inherit; transition: border-color 0.2s;
         }
-        .pagsuslit-name-input:focus {
-          border-color: rgba(99,102,241,0.6);
-        }
+        .pagsuslit-name-input:focus { border-color: rgba(99,102,241,0.6); }
         .pagsuslit-choice.selected {
           border-color: rgba(99,102,241,0.5);
           background: rgba(99,102,241,0.08);
