@@ -16,7 +16,7 @@ export default function Sidebar() {
             }
           >
             
-            <span className="sidebar-link-dot" />
+         
             {link.label}
           </NavLink>
         ))}

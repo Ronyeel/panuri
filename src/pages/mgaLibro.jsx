@@ -263,7 +263,6 @@ export default function MgaLibro() {
       <div className="ml-header">
         <p className="ml-eyebrow">Koleksyon</p>
         <h2 className="ml-title">Mga Libro</h2>
-        <p className="ml-sub">Mga akda ni Ricky Lee.</p>
       </div>
 
       <div className="ml-bookcase" ref={caseRef}>

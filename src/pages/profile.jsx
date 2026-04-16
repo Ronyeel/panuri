@@ -24,7 +24,6 @@ function PapelBadge({ papel }) {
   const config = PAPEL_CONFIG[papel] ?? { label: papel, className: 'prof-badge--default' }
   return (
     <span className={`prof-badge ${config.className}`}>
-      <BadgeIcon />
       {config.label}
     </span>
   )
@@ -202,7 +201,7 @@ export default function ProfilePage({ onNotify }) {
     const e = {}
     if (!passForm.current)             e.current = 'Ilagay ang kasalukuyang password.'
     if (!passForm.next)                e.next    = 'Ilagay ang bagong password.'
-    else if (passForm.next.length < 6) e.next    = 'Minimum 6 karakter.'
+    else if (passForm.next.length < 8) e.next    = 'Minimum 8 karakter.'
     if (passForm.next !== passForm.confirm) e.confirm = 'Hindi tugma ang mga password.'
     return e
   }
@@ -334,7 +333,7 @@ export default function ProfilePage({ onNotify }) {
                   id="prof-next"
                   value={passForm.next}
                   onChange={e => { setPassForm(p => ({ ...p, next: e.target.value })); setPassErr({}) }}
-                  placeholder="Min. 6 karakter"
+                  placeholder="Min. 8 karakter"
                   autoComplete="new-password"
                 />
               </Field>

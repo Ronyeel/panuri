@@ -184,7 +184,7 @@ export default function HomePage() {
         <div className="hero-inner">
 
           <div className="hero-welcome-tag">
-            <span className="welcome-label">Welcome</span>
+            <span className="welcome-label">Maligayang Pagdating</span>
             <span className="welcome-name">{username}</span>
             <span className="welcome-bang">!</span>
           </div>
@@ -297,7 +297,7 @@ export default function HomePage() {
         <div className="school-banner__content">
           <h2 className="school-headline">
             Magsulat. Magbasa. Magsuri. <br />
-            <em>Patungo sa Holistikong Kasanayan at <br></br>Kaalamang Panunuri.</em>
+            <em>Patungo sa Holistikong Kasanayan <br></br>at Kaalamang Panunuri.</em>
           </h2>
         </div>
       </section>

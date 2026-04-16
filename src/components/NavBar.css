@@ -29,7 +29,7 @@
 }
 
 .navbar-inner {
-  margin: 0;                 /* ← removed auto centering */
+  
   padding: 0 1.5rem 0 0;    /* ← no left padding; logo block handles it */
   height: 62px;
   display: flex;
