@@ -1,31 +1,30 @@
 
 
 /* ─── Variables ─────────────────────────────────────────────── */
-:root {
+.prof-root {
   --gold-dk:  #c9a200;
-  --gold-lt:  #e8c840;
-  --gold-dim: rgba(201,162,0,0.10);
-  --red:      #bf1e2e;
-  --red-dk:   #8f1020;
+  --gold-lt:  #f5c518;
+  --gold-dim: rgba(245,197,24,0.10);
+  --red-dk:   #8a0a0f;
   --red-dim:  rgba(191,30,46,0.10);
   --black:    #0a0a0a;
   --black-2:  #111111;
   --black-3:  #161616;
   --smoke:    #1e1e1e;
-  --mist:     #5a5248;
+  --mist:     var(--muted, #7a7060);
   --silver:   #9a9080;
   --silver-lt:#b8b0a0;
-  --cream:    #ede5d5;
+  --cream:    var(--text, #e4dccf);
   --cream-dk: #c8bca0;
 
-  --font-display: var(--font-display, 'Bebas Neue', sans-serif);
-  --font-body:    var(--font-primary, 'Crimson Text', Georgia, serif);
+  --font-display: 'Bebas Neue', sans-serif;
+  --font-body:    var(--font-primary, 'Crimson Text', serif);
 
   --radius-sm: 4px;
   --radius:    8px;
   --radius-lg: 12px;
   --shadow-card: 0 1px 0 rgba(255,255,255,0.04), 0 4px 32px rgba(0,0,0,0.6);
-  --shadow-gold: 0 0 24px rgba(201,162,0,0.08);
+  --shadow-gold: 0 0 24px rgba(245,197,24,0.08);
   --transition: 0.2s cubic-bezier(0.4,0,0.2,1);
 }
 
@@ -33,7 +32,7 @@
 .prof-root {
   min-height: 100vh;
   background: var(--black);
-  font-family: var(--font-primary);
+  font-family: var(--font-body);
   color: var(--cream);
   position: relative;
   overflow-x: hidden;
@@ -73,9 +72,9 @@
 .prof-container {
   position: relative;
   z-index: 1;
-  max-width: 980px;
+  max-width: var(--container-lg);
   margin: 0 auto;
-  padding: 0 28px 80px;
+  padding: 0 var(--page-pad-x) 80px;
 }
 
 /* ─── Top bar ────────────────────────────────────────────────── */
@@ -319,6 +318,11 @@
 }
 .prof-section--password {
   border-top-color: rgba(191,30,46,0.5);
+}
+.prof-section--danger {
+  border-top-color: rgba(191,30,46,0.8);
+  border-color: rgba(191,30,46,0.15);
+  background: rgba(191,30,46,0.02);
 }
 .prof-section--quiz {
   grid-column: 1 / -1;
@@ -677,7 +681,6 @@
   .prof-quiz-table-header > *:last-child { display: none; }
 }
 @media (max-width: 520px) {
-  .prof-container { padding: 0 16px 60px; }
   .prof-hero { grid-template-columns: auto 1fr; padding: 24px 20px; gap: 18px; }
   .prof-signout-btn { grid-column: 1 / -1; justify-content: center; }
   .prof-hero-name { font-size: 2rem; }

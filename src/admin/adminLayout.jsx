@@ -74,7 +74,7 @@ export default function AdminLayout() {
 
         <div className="ep-sidebar-header">
           <div className="ep-logo">
-            <span className="ep-logo-mark">P</span>
+            <img src="/mascot.png" alt="Panuri Logo" style={{ width: 52, height: 52, objectFit: 'contain' }} />
             <span className="ep-logo-text">Panisuri</span>
           </div>
           <button

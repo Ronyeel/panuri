@@ -27,7 +27,7 @@
   position: relative;
   min-height: 100vh;
   background: var(--exc-black);
-  padding: 5rem 0 4rem;
+  padding: var(--page-pad-y) 0;
   overflow-x: hidden;
 }
 
@@ -67,9 +67,9 @@
 .exc-page__inner {
   position: relative;
   z-index: 1;
-  max-width: 1200px;
+  max-width: var(--container-max);
   margin: 0 auto;
-  padding: 0 2rem;
+  padding: 0 var(--page-pad-x);
 }
 
 /* ── Back button ────────────────────────────────────────────── */
@@ -470,8 +470,8 @@
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 3rem 2rem 0;
-  max-width: 1200px;
+  padding: 3rem var(--page-pad-x) 0;
+  max-width: var(--container-max);
   margin: 0 auto;
   position: relative;
   z-index: 1;
@@ -498,7 +498,6 @@
     grid-template-columns: 1fr 1fr;
     gap: 0.85rem;
   }
-  .exc-page { padding: 3.5rem 0 3rem; }
 }
 @media (max-width: 400px) {
   .exc-grid { grid-template-columns: 1fr; }

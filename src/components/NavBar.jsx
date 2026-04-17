@@ -96,8 +96,12 @@ export default function NavBar({ isLoggedIn = false, username = '' }) {
               close()
             }}
           >
-            <span className="logo-line1">WEBSITE</span>
-            <span className="logo-line2">LOGO</span>
+            <img
+              src="/mascot.png"
+              alt="Panuri"
+              className="navbar-logo-img"
+            />
+            <span className="navbar-logo-text">PANURI</span>
           </a>
 
           {/* Search */}

@@ -6,9 +6,9 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   updateProfile, updatePassword,
-  reauthenticateWithCredential, EmailAuthProvider, signOut,
+  reauthenticateWithCredential, EmailAuthProvider, signOut, deleteUser,
 } from 'firebase/auth'
-import { doc, getDoc } from 'firebase/firestore'
+import { doc, getDoc, deleteDoc } from 'firebase/firestore'
 import { auth, db } from '../API/firebase'
 import { supabase } from '../API/supabase'
 import { useUI } from '../context/UIContext'
@@ -96,6 +96,12 @@ const QuizIcon = () => (
 const CloseIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
     <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>
+)
+const TrashIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+    <polyline points="3 6 5 6 21 6"/>
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
   </svg>
 )
 
@@ -460,6 +466,11 @@ export default function ProfilePage() {
   const [passErr,   setPassErr]   = useState({})
   const [passBusy,  setPassBusy]  = useState(false)
   const [passShake, setPassShake] = useState(false)
+  const [delForm,   setDelForm]   = useState({ password: '' })
+  const [delErr,    setDelErr]    = useState({})
+  const [delBusy,   setDelBusy]   = useState(false)
+  const [delShake,  setDelShake]  = useState(false)
+  const [delConfirmMode, setDelConfirmMode] = useState(false)
   const [heroStats, setHeroStats] = useState({ totalTaken: '—', avgScore: '—', highestScore: '—', activeDays: '—' })
 
   const handleStatsReady = useCallback((stats) => setHeroStats(stats), [])
@@ -508,7 +519,53 @@ export default function ProfilePage() {
     } finally { setPassBusy(false) }
   }
 
-  const handleSignOut = async () => { await signOut(auth); navigate('/') }
+  const handleSignOut = async () => {
+    const ok = await confirm({
+      title: 'Mag-sign Out',
+      body: 'Sigurado ka bang gusto mong mag-sign out?',
+      confirmLabel: 'Sign Out',
+      danger: true
+    })
+    if (!ok) return
+    await signOut(auth)
+    navigate('/')
+  }
+
+  const handleInitiateDelete = async () => {
+    const ok = await confirm({
+      title: 'Burahin ang Account',
+      body: 'Babala: Ang pagbura ng inyong account ay permanente at hindi na maibabalik. Sigurado ka ba?',
+      confirmLabel: 'Ituloy',
+      danger: true
+    })
+    if (ok) setDelConfirmMode(true)
+  }
+
+  const handleDeleteSubmit = async (e) => {
+    e.preventDefault()
+    if (!delForm.password) {
+      setDelErr({ password: 'Ilagay ang iyong password.' })
+      triggerShake(setDelShake)
+      return
+    }
+    setDelBusy(true)
+    try {
+      const credential = EmailAuthProvider.credential(user.email, delForm.password)
+      await reauthenticateWithCredential(user, credential)
+      
+      await supabase.from('quiz_attempts').delete().eq('user_uid', user.uid)
+      await deleteDoc(doc(db, 'users', user.uid))
+      await deleteUser(user)
+      
+      notify('Matagumpay na nabura ang account.', 'success')
+      navigate('/')
+    } catch (err) {
+      const isBadPass = err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential'
+      setDelErr(isBadPass ? { password: 'Mali ang password.' } : { password: 'May error. Subukan muli.' })
+      triggerShake(setDelShake)
+      notify('Hindi mabura ang account.', 'error')
+    } finally { setDelBusy(false) }
+  }
 
   if (!user) return null
 
@@ -531,7 +588,7 @@ export default function ProfilePage() {
         {/* Breadcrumb */}
         <div className="prof-topbar">
           <span className="prof-topbar-path">
-            Dashboard <span style={{ opacity: 0.4 }}>›</span> <span>Account</span>
+            <span style={{ opacity: 0.4 }}>›</span> <span>Account</span>
           </span>
         </div>
 
@@ -627,6 +684,46 @@ export default function ProfilePage() {
                 {passBusy ? 'Sine-save…' : 'I-save ang Password'}
               </button>
             </form>
+          </div>
+
+          {/* Delete Account */}
+          <div className="prof-section prof-section--danger" style={{ animationDelay: '120ms' }}>
+            <div className="prof-section-header">
+              <div className="prof-section-header-left">
+                <span className="prof-section-icon prof-section-icon--red"><TrashIcon /></span>
+                <h2 className="prof-section-title">Burahin ang Account</h2>
+              </div>
+            </div>
+            {!delConfirmMode ? (
+              <div className="prof-form">
+                <p style={{ fontSize: 13, color: 'var(--text-muted, #888)', margin: '0 0 16px', lineHeight: 1.5 }}>
+                  Babala: Ang pagbura ng inyong account ay permanente at hindi na maibabalik. Mabubura rin ang inyong mga resulta sa pagsusulit at iba pang kaugnay na impormasyon.
+                </p>
+                <button type="button" className="prof-btn prof-btn--red" onClick={handleInitiateDelete}>
+                  Burahin ang Account
+                </button>
+              </div>
+            ) : (
+              <form className={`prof-form${delShake ? ' prof-form--shake' : ''}`} onSubmit={handleDeleteSubmit} noValidate>
+                <p style={{ fontSize: 13, color: 'var(--text-muted, #888)', margin: '0 0 16px', lineHeight: 1.5 }}>
+                  Ilagay ang iyong password upang kumpirmahin ang pagbura ng account.
+                </p>
+                <Field label="Password" error={delErr.password}>
+                  <PassInput id="prof-del-pass" value={delForm.password}
+                    onChange={e => { setDelForm({ password: e.target.value }); setDelErr({}) }}
+                    placeholder="••••••••" autoComplete="current-password"/>
+                </Field>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button type="submit" className="prof-btn prof-btn--red" disabled={delBusy} aria-busy={delBusy}>
+                    {delBusy && <span className="prof-spinner" aria-hidden="true"/>}
+                    {delBusy ? 'Binubura…' : 'Kumpirmahin at Burahin'}
+                  </button>
+                  <button type="button" className="prof-btn" onClick={() => { setDelConfirmMode(false); setDelForm({ password: '' }); setDelErr({}) }} disabled={delBusy}>
+                    Kanselahin
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
 
           {/* Quiz history */}

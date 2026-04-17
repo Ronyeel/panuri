@@ -1,7 +1,7 @@
 // adminBooks.jsx
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../API/supabase'
-import { MdAdd, MdSearch, MdLibraryBooks, MdPictureAsPdf, MdOutlineDescription } from 'react-icons/md'
+import { MdAdd, MdSearch, MdLibraryBooks, MdPictureAsPdf, MdOutlineDescription, MdMoreVert } from 'react-icons/md'
 import { useUI } from '../context/UIContext'
 
 // ─────────────────────────────────────────────
@@ -80,6 +80,7 @@ export default function AdminBooks() {
   const [saving,  setSaving]  = useState(false)
   const [saveMsg, setSaveMsg] = useState('')   // progress message during upload
   const [error,   setError]   = useState('')
+  const [activeMenuId, setActiveMenuId] = useState(null)
   const titleRef   = useRef(null)
   const coverInput = useRef(null)
   const pdfInput   = useRef(null)
@@ -94,7 +95,13 @@ export default function AdminBooks() {
     setLoading(false)
   }
 
-  useEffect(() => { fetchBooks() }, [])
+  useEffect(() => {
+    fetchBooks()
+    const channel = supabase.channel('books_admin')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'books' }, fetchBooks)
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [])
 
   // ── modal helpers ──────────────────────────
   const openAdd = () => {
@@ -319,8 +326,8 @@ export default function AdminBooks() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         {b.cover
                           ? <img src={b.cover} alt=""
-                              style={{ width: 30, height: 42, objectFit: 'cover', borderRadius: 4,
-                                border: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }} />
+                              style={{ width: 30, height: 42, objectFit: 'contain', borderRadius: 4,
+                                border: '1px solid rgba(255,255,255,0.07)', flexShrink: 0, backgroundColor: 'var(--bg-3)' }} />
                           : <div style={{ width: 30, height: 42, background: 'var(--bg-3)', borderRadius: 4,
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
                               fontSize: 14, border: '1px solid var(--border)', flexShrink: 0 }}>📖</div>
@@ -357,9 +364,29 @@ export default function AdminBooks() {
                       </span>
                     </td>
                     <td>
-                      <div className="ep-actions">
-                        <button className="ep-btn ep-btn--ghost" onClick={() => openEdit(b)}>Edit</button>
-                        <button className="ep-btn ep-btn--danger" onClick={() => handleDelete(b.id, b.title)}>Delete</button>
+                      <div style={{ position: 'relative', display: 'flex', justifyContent: 'center' }}>
+                        <button
+                          className="ep-kebab-btn"
+                          onClick={() => setActiveMenuId(activeMenuId === b.id ? null : b.id)}
+                        >
+                          <MdMoreVert size={20} />
+                        </button>
+                        {activeMenuId === b.id && (
+                          <div className="ep-kebab-menu" style={{ right: '50%', transform: 'translateX(50%)' }}>
+                            <button
+                              className="ep-kebab-item"
+                              onClick={() => { openEdit(b); setActiveMenuId(null); }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="ep-kebab-item ep-kebab-item--danger"
+                              onClick={() => { handleDelete(b.id, b.title); setActiveMenuId(null); }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -442,8 +469,8 @@ export default function AdminBooks() {
                       <img
                         src={form.coverFile ? URL.createObjectURL(form.coverFile) : form.cover}
                         alt="cover preview"
-                        style={{ height: 80, borderRadius: 6, objectFit: 'cover',
-                          border: '1px solid var(--border)' }}
+                        style={{ maxHeight: 150, maxWidth: '100%', borderRadius: 6, objectFit: 'contain',
+                          border: '1px solid var(--border)', backgroundColor: 'var(--bg-3)' }}
                       />
                     </div>
                   )}

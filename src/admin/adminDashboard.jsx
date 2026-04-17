@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { collection, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore'
 import { auth, db } from '../API/firebase'
 import { useUI } from '../context/UIContext'
-import { MdSearch, MdGroup, MdAdminPanelSettings, MdPerson } from 'react-icons/md'
+import { MdSearch, MdGroup, MdAdminPanelSettings, MdPerson, MdMoreVert } from 'react-icons/md'
 
 function maskEmail(email = '') {
   const [local, domain] = email.split('@')
@@ -31,6 +31,7 @@ export default function AdminDashboard() {
   const [search,   setSearch]  = useState('')
   const [loading,  setLoading] = useState(true)
   const [deleting, setDeleting] = useState(null)
+  const [activeMenuId, setActiveMenuId] = useState(null)
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'users'), (snap) => {
@@ -193,26 +194,32 @@ export default function AdminDashboard() {
                     </td>
 
                     <td>
-                      <div className="ep-actions">
+                      {/* Actions (Kebab Menu for All Screens) */}
+                      <div style={{ position: 'relative', display: 'flex', justifyContent: 'center' }}>
                         <button
-                          className="ep-btn ep-btn--ghost"
-                          onClick={() => toggleRole(u.id, u.role)}
-                          disabled={u.id === auth.currentUser?.uid}
-                          title={u.id === auth.currentUser?.uid ? 'Hindi mo mababago ang sarili mong role.' : ''}
+                          className="ep-kebab-btn"
+                          onClick={() => setActiveMenuId(activeMenuId === u.id ? null : u.id)}
                         >
-                          {u.role === 'admin' ? 'Remove admin' : 'Make admin'}
+                          <MdMoreVert size={20} />
                         </button>
-                        <button
-                          className="ep-btn ep-btn--danger"
-                          onClick={() => deleteUser(u.id, u.username)}
-                          disabled={u.id === auth.currentUser?.uid || deleting === u.id}
-                          title={u.id === auth.currentUser?.uid ? 'Hindi mo matatanggal ang sarili mo.' : ''}
-                        >
-                          {deleting === u.id
-                            ? <><span className="ep-spinner ep-spinner--sm" /> Tinatanggal…</>
-                            : 'Delete'
-                          }
-                        </button>
+                        {activeMenuId === u.id && (
+                          <div className="ep-kebab-menu" style={{ right: '50%', transform: 'translateX(50%)' }}>
+                            <button
+                              className="ep-kebab-item"
+                              onClick={() => { toggleRole(u.id, u.role); setActiveMenuId(null); }}
+                              disabled={u.id === auth.currentUser?.uid}
+                            >
+                              {u.role === 'admin' ? 'Remove admin' : 'Make admin'}
+                            </button>
+                            <button
+                              className="ep-kebab-item ep-kebab-item--danger"
+                              onClick={() => { deleteUser(u.id, u.username); setActiveMenuId(null); }}
+                              disabled={u.id === auth.currentUser?.uid || deleting === u.id}
+                            >
+                              {deleting === u.id ? 'Tinatanggal…' : 'Delete'}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </td>
 

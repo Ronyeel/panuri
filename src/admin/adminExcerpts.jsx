@@ -1,7 +1,7 @@
 // adminExcerpts.jsx
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../API/supabase'
-import { MdAdd, MdSearch, MdArticle, MdPictureAsPdf, MdImage } from 'react-icons/md'
+import { MdAdd, MdSearch, MdArticle, MdPictureAsPdf, MdImage, MdMoreVert } from 'react-icons/md'
 import { useUI } from '../context/UIContext'
 
 const EMPTY_FORM = {
@@ -24,6 +24,7 @@ export default function AdminExcerpts() {
   const [modal,   setModal]   = useState(false)
   const [saving,  setSaving]  = useState(false)
   const [error,   setError]   = useState('')
+  const [activeMenuId, setActiveMenuId] = useState(null)
   const titleRef = useRef(null)
 
   /* fetch */
@@ -38,7 +39,13 @@ export default function AdminExcerpts() {
     setLoading(false)
   }
 
-  useEffect(() => { fetchItems() }, [])
+  useEffect(() => {
+    fetchItems()
+    const channel = supabase.channel('excerpts_admin')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'excerpts' }, fetchItems)
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [])
 
   /* modal helpers */
   const openAdd = () => {
@@ -237,9 +244,29 @@ export default function AdminExcerpts() {
                       }
                     </td>
                     <td>
-                      <div className="ep-actions">
-                        <button className="ep-btn ep-btn--ghost" onClick={() => openEdit(item)}>Edit</button>
-                        <button className="ep-btn ep-btn--danger" onClick={() => handleDelete(item.id, item.bookTitle)}>Delete</button>
+                      <div style={{ position: 'relative', display: 'flex', justifyContent: 'center' }}>
+                        <button
+                          className="ep-kebab-btn"
+                          onClick={() => setActiveMenuId(activeMenuId === item.id ? null : item.id)}
+                        >
+                          <MdMoreVert size={20} />
+                        </button>
+                        {activeMenuId === item.id && (
+                          <div className="ep-kebab-menu" style={{ right: '50%', transform: 'translateX(50%)' }}>
+                            <button
+                              className="ep-kebab-item"
+                              onClick={() => { openEdit(item); setActiveMenuId(null); }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="ep-kebab-item ep-kebab-item--danger"
+                              onClick={() => { handleDelete(item.id, item.bookTitle); setActiveMenuId(null); }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </td>
                   </tr>

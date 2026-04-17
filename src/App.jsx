@@ -31,13 +31,17 @@ import Registration         from './pages/register';
 import ProfilePage          from './pages/profile';
 import MagsuriTayo          from './pages/magsuriTayo';
 import TeoryangPampanitikan from './pages/teoryangPampanitikan';
+import BagongPamantayan     from './pages/bagongPamantayan';
+import TungkolSaAmin        from './pages/tungkolSaAmin';
+import ForgotPassword       from './pages/forgotPassword';
 
 // ─── Constants ────────────────────────────────────────────────
-const CHROME_HIDDEN_ROUTES = new Set(['/login', '/register', '/magsuri']);
+const CHROME_HIDDEN_ROUTES = new Set(['/login', '/register', '/forgot-password', '/magsuri']);
 
 const PROTECTED_ROUTES = new Set([
   '/', '/mga-libro', '/excerpts', '/pagsusuri',
   '/pagsusulit', '/profile', '/magsuri',
+  '/bagong-pamantayan', '/tungkol-sa'
 ]);
 
 const Blank = () => <div style={{ minHeight: '100vh', background: '#0d0d0d' }} />;
@@ -144,6 +148,14 @@ function Layout({ user, authReady }) {
                 </RedirectIfAuthed>
               }
             />
+            <Route
+              path="/forgot-password"
+              element={
+                <RedirectIfAuthed user={user} authReady={authReady}>
+                  <ForgotPassword />
+                </RedirectIfAuthed>
+              }
+            />
 
             {/* ── Admin ──────────────────────────────────────── */}
             <Route
@@ -184,6 +196,8 @@ function Layout({ user, authReady }) {
               { path: '/magsuri',    element: <MagsuriTayo /> },
               { path: '/teorya',     element: <TeoryangPampanitikan /> },
               { path: '/profile',    element: <ProfilePage /> },
+              { path: '/bagong-pamantayan', element: <BagongPamantayan /> },
+              { path: '/tungkol-sa', element: <TungkolSaAmin /> },
             ].map(({ path, element }) => (
               <Route
                 key={path}

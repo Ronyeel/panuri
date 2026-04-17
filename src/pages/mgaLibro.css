@@ -65,9 +65,9 @@
 
 /* ── Header ── */
 .ml-header {
-  max-width: 1200px;
+  max-width: var(--container-max);
   margin: 0 auto;
-  padding: 3rem 2rem 2.5rem;
+  padding: var(--page-pad-y) var(--page-pad-x) 2.5rem;
   text-align: center;
   position: relative;
   z-index: 2;
@@ -99,9 +99,9 @@
 
 /* ── Bookcase ── */
 .ml-bookcase {
-  max-width: 1200px;
+  max-width: var(--container-max);
   margin: 0 auto;
-  padding: 0 clamp(1rem, 3vw, 3rem);
+  padding: 0 var(--page-pad-x);
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -143,7 +143,7 @@
   align-items: flex-end;
   justify-content: center;
   gap: var(--gap);
-  padding: 2rem clamp(0.5rem, 2vw, 1.5rem) 0;
+  padding: 2rem var(--page-pad-x) 0;
   position: relative;
   overflow: visible;
 }

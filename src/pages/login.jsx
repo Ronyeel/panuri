@@ -10,6 +10,7 @@ import {
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db } from '../API/firebase'
 import { useUI } from '../context/UIContext'
+import MascotBubble from '../components/MascotBubble'
 import './auth.css'
 
 // ─── Cookie helpers ───────────────────────────────────────────────────────────
@@ -147,7 +148,9 @@ export default function Login() {
       <div className={`auth-card${shake ? ' auth-card--shake' : ''}`}>
 
         <div className="auth-brand">
-          <div className="auth-hero-image"></div>
+          <div className="auth-hero-image">
+            <MascotBubble mode="login" />
+          </div>
         </div>
 
         <div className="auth-right">
@@ -214,7 +217,7 @@ export default function Login() {
 
             {/* Remember Me + Forgot Password */}
             {/* Remember Me + Forgot Password */}
-            <a className="auth-forgot" href="/forgot-password">Nalimutan ang password?</a>
+            <Link className="auth-forgot" to="/forgot-password">Nalimutan ang password?</Link>
             
             <div className="auth-remember-row" style={{ display: 'none' }}>
               <label className="auth-remember-label">

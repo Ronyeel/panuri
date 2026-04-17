@@ -35,6 +35,16 @@
   --text-md:   clamp(1rem,     2vw,   1.15rem);
   --text-lg:   clamp(1.5rem,   3vw,   2rem);
   --text-hero: clamp(2.8rem,   7vw,   5.5rem);
+
+  /* Layout Containers */
+  --container-max: 1200px;
+  --container-lg:  1080px;
+  --container-md:  860px;
+  --container-sm:  680px;
+
+  /* Global page padding */
+  --page-pad-x: clamp(1rem, 4vw, 2.5rem);
+  --page-pad-y: clamp(2rem, 6vw, 4rem);
 }
  
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

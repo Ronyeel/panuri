@@ -186,8 +186,8 @@
 /* ── Mobile ───────────────────────────────────────────────────────────── */
 @media (max-width: 480px) {
   .ui-toast-stack {
-    top: auto;
-    bottom: 1rem;
+    top: 1rem;
+    bottom: auto;
     right: 1rem;
     left: 1rem;
   }

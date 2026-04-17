@@ -1,0 +1,113 @@
+.terms-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  animation: fadeIn 0.3s ease;
+}
+
+.terms-modal-content {
+  background: #111;
+  border: 1px solid rgba(245, 197, 24, 0.3);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 600px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
+  animation: slideUp 0.3s ease;
+}
+
+.terms-modal-close {
+  position: absolute;
+  top: 15px;
+  right: 20px;
+  background: none;
+  border: none;
+  color: #a0a0a0;
+  font-size: 28px;
+  cursor: pointer;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.terms-modal-close:hover {
+  color: #f5c518;
+}
+
+.terms-modal-title {
+  font-family: var(--font-primary, 'Crimson Text', serif);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #f5c518;
+  padding: 20px 24px;
+  margin: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.terms-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  color: #e8e0cc;
+  font-family: var(--font-primary, 'Crimson Text', serif);
+}
+
+.terms-modal-body h3 {
+  font-size: 1.1rem;
+  color: #fff;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.terms-modal-body h3:first-child {
+  margin-top: 0;
+}
+
+.terms-modal-body p {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #a0a0a0;
+  margin: 0;
+}
+
+.terms-modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.terms-modal-btn {
+  background: linear-gradient(135deg, #fceb8c 0%, #f5c518 100%);
+  color: #000;
+  font-family: var(--font-primary, 'Crimson Text', serif);
+  font-size: 0.9rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 20px;
+  cursor: pointer;
+  transition: transform 0.15s, opacity 0.15s;
+}
+
+.terms-modal-btn:hover {
+  transform: translateY(-1px);
+  opacity: 0.9;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}

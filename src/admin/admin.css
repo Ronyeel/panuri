@@ -14,17 +14,14 @@
   --border:    rgba(191,30,46,0.25);
   --border-hi: rgba(245,197,24,0.25);
 
-  --text-1: #f0e8d0;
-  --text-2: #b09878;
-  --text-3: #6a4a38;
+  --text-1: var(--text, #e4dccf);
+  --text-2: #c4baab;
+  --text-3: var(--muted, #7a7060);
 
-  --accent:      #f5c518;          /* gold */
+  --accent:      var(--gold, #f5c518);
   --accent-dim:  rgba(245,197,24,0.12);
   --accent-glow: rgba(245,197,24,0.25);
-
   --green:  #22d3a5;
-  --gold:   #f5c518;
-  --red:    #bf1e2e;
   --red-lt: #e83040;
   --blue:   #4fa3e8;
 
@@ -43,7 +40,7 @@
 /* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 15px; }
-body { font-family: var(--font-primary); background: var(--bg); color: var(--text-1); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+body { font-family: var(--font-primary, 'Crimson Text', serif); background: var(--bg); color: var(--text-1); line-height: 1.5; -webkit-font-smoothing: antialiased; }
 a { text-decoration: none; color: inherit; }
 button { font-family: inherit; cursor: pointer; border: none; background: none; }
 input, select, textarea { font-family: inherit; }
@@ -55,7 +52,7 @@ input, select, textarea { font-family: inherit; }
   display: flex;
   height: 100vh;
   overflow: hidden;
-  background: #141414 !important;
+  background: var(--bg) !important;
 }
 
 /* ══════════════════════════════
@@ -66,7 +63,7 @@ input, select, textarea { font-family: inherit; }
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #060606;
+  background: var(--bg-1);
   border-right: 1px solid rgba(191,30,46,0.2);
   transition: width var(--transition);
   flex-shrink: 0;
@@ -400,7 +397,7 @@ input, select, textarea { font-family: inherit; }
   background: var(--bg-1);
   border: 1px solid rgba(191,30,46,0.2);
   border-radius: var(--radius);
-  overflow: hidden;
+  overflow: visible; /* Changed from hidden to prevent kebab clipping */
 }
 
 .ep-card-header {
@@ -459,7 +456,7 @@ input, select, textarea { font-family: inherit; }
    TABLE
 ══════════════════════════════ */
 .ep-table-wrap {
-  overflow-x: auto;
+  overflow: visible; /* Prevents kebab menu from causing ugly scrollbars or clipping */
   -webkit-overflow-scrolling: touch;
 }
 
@@ -525,10 +522,10 @@ input, select, textarea { font-family: inherit; }
 
 .ep-td-email { color: var(--text-3) !important; font-size: 12.5px; font-family: 'DM Mono', monospace; }
 
-/* ── Global Admin Icon Color Override ── */
-.ep-shell svg, .qz-page svg {
+/* ── Global Admin Icon Color Override (Removed to allow contextual colors) ── */
+/* .ep-shell svg, .qz-page svg {
   color: var(--gold) !important;
-}
+} */
 
 .ep-btn svg, .qz-btn svg {
   color: inherit !important;
@@ -610,6 +607,74 @@ input, select, textarea { font-family: inherit; }
   display: flex;
   gap: 7px;
   flex-wrap: wrap;
+}
+
+.ep-actions-mobile {
+  display: none;
+  position: relative;
+}
+
+.ep-kebab-btn {
+  background: none;
+  border: none;
+  color: var(--text-3);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: color 0.2s, background 0.2s;
+}
+.ep-kebab-btn:hover {
+  background: var(--bg-3);
+  color: var(--text-1);
+}
+
+.ep-kebab-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: var(--bg-1);
+  border: 1px solid rgba(191,30,46,0.2);
+  border-radius: 8px;
+  padding: 4px;
+  min-width: 140px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  animation: ep-fade-up 0.2s ease both;
+}
+
+.ep-kebab-item {
+  background: none;
+  border: none;
+  color: var(--text-2);
+  font-family: var(--font-primary);
+  font-size: 13px;
+  text-align: left;
+  padding: 10px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.2s, color 0.2s;
+  width: 100%;
+}
+.ep-kebab-item:hover:not(:disabled) {
+  background: rgba(191,30,46,0.1);
+  color: var(--text-1);
+}
+.ep-kebab-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ep-kebab-item--danger {
+  color: var(--red);
+}
+.ep-kebab-item--danger:hover:not(:disabled) {
+  background: rgba(255,95,109,0.1);
 }
 
 /* ══════════════════════════════
@@ -829,6 +894,10 @@ input, select, textarea { font-family: inherit; }
   .ep-nav-item { justify-content: center; padding: 10px; }
   .ep-logout-btn { justify-content: center; }
   .ep-sidebar-header { justify-content: center; padding: 18px 10px; }
+  
+  .ep-table-wrap {
+    overflow-x: auto; /* Restore horizontal scroll for mobile */
+  }
 }
 
 @media (max-width: 640px) {
@@ -846,7 +915,8 @@ input, select, textarea { font-family: inherit; }
   .ep-modal { border-radius: 12px; }
   .ep-modal-header, .ep-modal-body, .ep-modal-footer { padding-inline: 18px; }
   .ep-table th, .ep-table td { padding: 10px 12px; }
-  .ep-actions { flex-wrap: nowrap; }
+  .ep-actions--desktop { display: none; }
+  .ep-actions-mobile { display: block; }
   .ep-btn { padding: 6px 10px; font-size: 11.5px; }
   .ep-toast { left: 16px; right: 16px; bottom: 16px; }
 }

@@ -16,24 +16,34 @@
 
 import { useState, useRef, useCallback } from "react";
 import * as mammoth from "mammoth";
+import { auth } from "../API/firebase";
 import "./magsuriTayo.css";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-const GROQ_API_KEY   = import.meta.env.VITE_GROQ_API_KEY;
-const GROQ_MODEL     = "llama-3.3-70b-versatile";
-const GROQ_API_URL   = "https://api.groq.com/openai/v1/chat/completions";
-const MAX_FILE_BYTES = 20 * 1024 * 1024;
-const DAILY_LIMIT    = 15;
-const RATE_KEY       = "ms_rate";
-const CHUNK_SIZE     = 6_000;
+const GROQ_API_KEY    = import.meta.env.VITE_GROQ_API_KEY;
+// Large, capable model — used only for short documents (full summary)
+const GROQ_MODEL_FULL = "llama-3.3-70b-versatile";
+// Fast model with much higher TPM limits — used for large doc sampling
+const GROQ_MODEL_FAST = "llama-3.1-8b-instant";
+const GROQ_API_URL    = "https://api.groq.com/openai/v1/chat/completions";
+const MAX_FILE_BYTES  = 100 * 1024 * 1024;
+const DAILY_LIMIT     = 15;
+const RATE_KEY        = "ms_rate";
+const CHUNK_SIZE      = 6_000;
+// Chars to send in a single large-doc sampling call.
+// Filipino text ~2.7 chars/token. Budget: 6000 TPM - 500 output - 200 prompts = 5300 input tokens.
+// 5300 × 2.7 = ~14,300 chars; use 10,000 for a comfortable safety margin.
+const SAMPLE_BUDGET   = 10_000;
+// Docs smaller than this get a full summary in one call; larger ones get sampled
+const SINGLE_CALL_MAX = SAMPLE_BUDGET;
 
 const LOADING_MSGS = [
   "Binabasa ang dokumento...",
+  "Kinukuha ang mga pangunahing ideya...",
   "Sinusuri ang nilalaman...",
-  "Ginagawa ang buod...",
   "Pinoproseso ang mga seksyon...",
   "Pinagsasama ang mga resulta...",
   "Halos tapos na...",
@@ -47,9 +57,14 @@ function getTodayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function getRateKey() {
+  const uid = auth.currentUser?.uid;
+  return uid ? `${RATE_KEY}_${uid}` : RATE_KEY;
+}
+
 function getRateData() {
   try {
-    const raw = localStorage.getItem(RATE_KEY);
+    const raw = localStorage.getItem(getRateKey());
     if (!raw) return { date: "", count: 0 };
     return JSON.parse(raw);
   } catch {
@@ -68,7 +83,7 @@ function consumeRequest() {
   const data  = getRateData();
   const count = data.date === today ? data.count : 0;
   if (count >= DAILY_LIMIT) return false;
-  localStorage.setItem(RATE_KEY, JSON.stringify({ date: today, count: count + 1 }));
+  localStorage.setItem(getRateKey(), JSON.stringify({ date: today, count: count + 1 }));
   return true;
 }
 
@@ -77,7 +92,7 @@ function refundRequest() {
     const today = getTodayStr();
     const data  = getRateData();
     if (data.date === today && data.count > 0) {
-      localStorage.setItem(RATE_KEY, JSON.stringify({ date: today, count: data.count - 1 }));
+      localStorage.setItem(getRateKey(), JSON.stringify({ date: today, count: data.count - 1 }));
     }
   } catch { /* ignore */ }
 }
@@ -112,21 +127,23 @@ function chunkText(text, chunkSize = CHUNK_SIZE) {
 //  RETRY WRAPPER
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function withRetry(fn, maxAttempts = 4, baseDelayMs = 1500) {
+async function withRetry(fn, maxAttempts = 3, baseDelayMs = 8000) {
   let lastErr;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       return await fn();
     } catch (err) {
       lastErr = err;
+      const is429 = err?.status === 429;
       const isRetryable =
-        err?.status === 429 ||
+        is429 ||
         (err?.status >= 500 && err?.status < 600) ||
-        err?.message?.includes("rate") ||
         err?.message?.includes("server") ||
         err?.message?.includes("timeout");
       if (!isRetryable || attempt === maxAttempts - 1) throw err;
-      const delay = baseDelayMs * Math.pow(2, attempt) + Math.random() * 500;
+      // Honour the server's retry-after if provided, else exponential backoff
+      const retryAfter = err?.retryAfter ? err.retryAfter * 1000 : null;
+      const delay = retryAfter ?? (baseDelayMs * Math.pow(2, attempt) + Math.random() * 1000);
       await new Promise((r) => setTimeout(r, delay));
     }
   }
@@ -134,148 +151,216 @@ async function withRetry(fn, maxAttempts = 4, baseDelayMs = 1500) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  GROQ API
+//  GROQ API  —  with automatic model fallback on rate-limit
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function callGroq(messages, maxTokens = 10000) {
-  const res = await withRetry(async () => {
-    const r = await fetch(GROQ_API_URL, {
-      method:  "POST",
-      headers: {
-        "Content-Type":  "application/json",
-        "Authorization": `Bearer ${GROQ_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model:       GROQ_MODEL,
-        temperature: 0.35,
-        max_tokens:  maxTokens,
-        messages,
-      }),
-    });
-    if (!r.ok) {
-      const err = await r.json().catch(() => ({}));
-      const e   = new Error(err.error?.message || `Groq error ${r.status}`);
-      e.status  = r.status;
-      if (r.status === 401) e.message = "API key error. Makipag-ugnayan sa admin.";
-      else if (r.status === 429) e.message = "Rate limited ng Groq. Sandaling hintay...";
-      throw e;
-    }
-    return r.json();
+// Single low-level request (no retry)
+async function fetchGroq(model, messages, maxTokens) {
+  const r = await fetch(GROQ_API_URL, {
+    method:  "POST",
+    headers: {
+      "Content-Type":  "application/json",
+      "Authorization": `Bearer ${GROQ_API_KEY}`,
+    },
+    body: JSON.stringify({ 
+      model, 
+      temperature: 0.7, 
+      frequency_penalty: 0.6,
+      presence_penalty: 0.6,
+      max_tokens: maxTokens, 
+      messages 
+    }),
   });
-  return res.choices?.[0]?.message?.content?.trim() || "";
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    const e    = new Error(body.error?.message || `Groq error ${r.status}`);
+    e.status   = r.status;
+    const ra   = r.headers.get("retry-after") || r.headers.get("x-ratelimit-reset-requests");
+    if (ra) e.retryAfter = parseFloat(ra);
+    if (r.status === 401) e.message = "API key error. Makipag-ugnayan sa admin.";
+    throw e;
+  }
+  const data = await r.json();
+  return data.choices?.[0]?.message?.content?.trim() || "";
+}
+
+/**
+ * callGroq — tries GROQ_MODEL_FULL first.
+ * On 429 rate-limit, automatically falls back to GROQ_MODEL_FAST.
+ * If both are rate-limited, waits and retries once more before giving up.
+ */
+async function callGroq(messages, maxTokens = 1024) {
+  const models   = [GROQ_MODEL_FULL, GROQ_MODEL_FAST];
+  let   lastErr;
+
+  for (let pass = 0; pass < 2; pass++) {
+    for (const model of models) {
+      try {
+        return await fetchGroq(model, messages, maxTokens);
+      } catch (err) {
+        lastErr = err;
+        if (err?.status === 429) {
+          // Rate-limited on this model — try the other one immediately
+          continue;
+        }
+        // Non-rate-limit error: surface immediately
+        throw err;
+      }
+    }
+    // Both models rate-limited — wait before the second pass
+    if (pass === 0) {
+      const retryAfter = lastErr?.retryAfter ? lastErr.retryAfter * 1000 : 12_000;
+      await new Promise(r => setTimeout(r, retryAfter));
+    }
+  }
+
+  // Both models failed both passes
+  lastErr.message = "Abalang-abala ang AI server. Sandaling hintay at subukan ulit.";
+  throw lastErr;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  PROMPTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-function systemPrompt(lang) {
-  const langNote =
-    lang === "fil"
-      ? "Laging isulat ang lahat ng output sa Filipino/Tagalog."
-      : "Always write all output in English.";
-  return `Ikaw ay isang expert document analyst at summarizer. ${langNote}
-Maging detalyado, organisado, at komprehensibo. Huwag mag-alinlangan na magbigay ng mahahabang sagot kung kinakailangan.
-Huwag gumamit ng labis na repetition. Tiyaking bawat punto ay mahalaga at may laman.`;
+function systemPrompt() {
+  return `Ikaw ay isang mahusay na document analyst. Sumulat sa natural, malinaw, at propesyonal na Tagalog.
+Ibigay ang pinakamahalagang impormasyon mula sa teksto. Gawing maikli, madaling basahin, at gumamit ng iba't ibang paraan ng pagbuo ng pangungusap upang maging maganda ang daloy ng pagbasa.
+Iwasan ang pagiging paulit-ulit. Hayaan mong dumaloy nang natural ang iyong pagsusuri.`;
+}
+
+function keyIdeasStructure(fileName) {
+  return `Ibigay ang isang maikli at direktang buod ng "${fileName}".
+
+**Abstrak:**
+(Magbigay ng 2-3 pangungusap na malinaw na nagbubuod sa kabuuang mensahe ng dokumento. Isulat nang natural.)
+
+**Mga Pangunahing Ideya:**
+(Ilista ang mga pinakamahalagang konsepto gamit ang 5-7 na maikling bullet points. Hayaan mong maging natural at iba-iba ang pagkakabuo ng bawat punto.)
+- 
+- 
+
+(Huwag nang magdagdag ng anumang ibang seksyon. Panatilihing maikli at direkta ang sagot.)`;
 }
 
 function fullSummaryStructure(fileName) {
-  return `Gawin ang isang malinaw, komprehensibo, at DETALYADONG buod ng dokumentong ito: "${fileName}"
+  return `Ibigay ang isang maikli at direktang buod ng "${fileName}".
 
-Kasama ang lahat ng sumusunod na seksyon:
+**Abstrak:**
+(Magbigay ng malinaw na buod ng buong dokumento gamit ang 2-4 na natural na pangungusap.)
 
-1. **Pangunahing Paksa** — Ano ang tungkol sa dokumento? Ipaliwanag nang buong-buo.
+**Mga Pangunahing Ideya:**
+(Ilista ang mga pinakamahalagang punto at argumento gamit ang 5-8 bullet points. Isulat nang malinaw at may magandang daloy ang bawat isa.)
+- 
+- 
 
-2. **Konteksto at Layunin** — Bakit ginawa ang dokumentong ito? Para kanino ito?
-
-3. **Mahahalagang Puntos** — Listahan ang LAHAT ng mahahalagang punto. Bawat punto ay may maikling paliwanag.
-
-4. **Mahahalagang Detalye** — Mga espesipikong impormasyon: numero, petsa, pangalan, datos.
-
-5. **Konklusyon at Rekomendasyon** — Ano ang pangunahing takeaway? May mga rekomendasyon ba?
-
-6. **Pangkalahatang Pagtatasa** — Ano ang kahalagahan ng dokumentong ito?
-
-Maging detalyado. Huwag mag-iwan ng mahalagang impormasyon.`;
+(Huwag nang magdagdag ng anumang ibang seksyon. Panatilihing maikli at madaling basahin.)`;
 }
 
-async function summarizeChunk(chunk, chunkIndex, totalChunks, fileName, lang) {
-  const isOnly  = totalChunks === 1;
-  const partNote = isOnly
-    ? ""
-    : `\n\nIto ay bahagi ${chunkIndex + 1} ng ${totalChunks} ng dokumento. I-extract ang lahat ng mahahalagang impormasyon mula sa seksyong ito.`;
+function emergencyOutlineStructure() {
+  return `TALA: Ito ay isang emergency fallback dahil sa server overload. Magbigay lamang ng napakaikling buod.
 
-  const prompt = isOnly
-    ? `${fullSummaryStructure(fileName)}\n\n---DOKUMENTO---\n${chunk}`
-    : `I-extract at i-summarize ang lahat ng mahahalagang impormasyon mula sa seksyong ito ng dokumento "${fileName}":${partNote}
+**Pangunahing Paksa:**
+[1-2 pangungusap]
 
-Kasama:
-- Lahat ng mahahalagang puntos at argumento
-- Mga espesipikong datos, numero, petsa, pangalan
-- Mga konklusyon o rekomendasyon sa seksyong ito
-- Anumang kontekstong mahalaga
+**Mga Susing Ideya:**
+- [punto 1]
+- [punto 2]
+- [punto 3]
+- [punto 4]
+- [punto 5]
 
-Maging detalyado — ang lahat ng impormasyon dito ay ipapasa sa susunod na hakbang ng pagsusuri.
-
----NILALAMAN---
-${chunk}`;
-
-  return callGroq(
-    [
-      { role: "system", content: systemPrompt(lang) },
-      { role: "user",   content: prompt },
-    ],
-    4096
-  );
+(Huwag magdagdag ng iba pang seksyon. Maging direkta at maikli.)`;
 }
 
-async function mergeSummaries(chunkSummaries, fileName, lang) {
-  const combined = chunkSummaries
-    .map((s, i) => `=== BAHAGI ${i + 1} ===\n${s}`)
-    .join("\n\n");
+// ─────────────────────────────────────────────────────────────────────────────
+//  SMART TEXT SAMPLING
+//  For very long documents, instead of N sequential API calls (which hit rate
+//  limits), we intelligently sample sections and send them in one call.
+// ─────────────────────────────────────────────────────────────────────────────
 
-  const prompt = `Narito ang mga buod mula sa bawat bahagi ng dokumento "${fileName}".
-Pagsamahin at gawing isang komprehensibo, organisadong buod ang lahat ng impormasyon.
+function sampleText(text, budget = SAMPLE_BUDGET) {
+  if (text.length <= budget) return { sampled: text, isSampled: false };
 
-${fullSummaryStructure(fileName)}
+  // Weight: 35% intro (establishes context), 45% middle samples, 20% ending
+  const introSize  = Math.floor(budget * 0.35);
+  const middleSize = Math.floor(budget * 0.45);
+  const endSize    = budget - introSize - middleSize;
 
----MGA BAHAGI---
-${combined}`;
+  const intro  = text.slice(0, introSize);
+  const ending = text.slice(-endSize);
 
-  return callGroq(
-    [
-      { role: "system", content: systemPrompt(lang) },
-      { role: "user",   content: prompt },
-    ],
-    8192
-  );
+  // 3 evenly-spaced windows from the middle
+  const middleStart  = introSize;
+  const middleEnd    = text.length - endSize;
+  const middleSpan   = middleEnd - middleStart;
+  const windowSize   = Math.floor(middleSize / 3);
+  const gap          = Math.floor(middleSpan / 3);
+  const middleSamples = [0, 1, 2].map(i => {
+    const start = middleStart + i * gap;
+    return text.slice(start, start + windowSize);
+  });
+
+  const sampled = [intro, ...middleSamples, ending].join("\n\n[...]\n\n");
+  return { sampled, isSampled: true };
 }
 
-async function summarizeDocument(text, fileName, lang, onProgress) {
+async function summarizeDocument(text, fileName, lang, mode, onProgress) {
   const chunks = chunkText(text);
   const total  = chunks.length;
 
   onProgress({ phase: "chunking", done: 0, total });
 
-  if (total === 1) {
+  try {
+    // ── Strategy A: Short document — full summary, capable model ──────────────
+    if (text.length <= SINGLE_CALL_MAX) {
+      onProgress({ phase: "summarizing", done: 0, total: 1 });
+      const structure = fullSummaryStructure(fileName);
+      const prompt    = `${structure}\n\n---DOKUMENTO---\n${text}`;
+      const result    = await callGroq(
+        [{ role: "system", content: systemPrompt() }, { role: "user", content: prompt }],
+        2048
+      );
+      onProgress({ phase: "done", done: 1, total: 1 });
+      return result;
+    }
+
+    // ── Strategy B: Large document — smart sampling, fast model (1 call) ──────
     onProgress({ phase: "summarizing", done: 0, total: 1 });
-    const summary = await summarizeChunk(chunks[0], 0, 1, fileName, lang);
+    const { sampled } = sampleText(text);
+    const wordCount   = Math.round(text.length / 5);
+    const samplingNote = `[~${wordCount.toLocaleString()} salita ang dokumento. Sumusunod ay mga piling seksyon mula sa simula, gitna, at dulo.]\n\n`;
+
+    const structure = keyIdeasStructure(fileName);
+    const prompt    = `${samplingNote}${structure}\n\n---SEKSYON NG DOKUMENTO---\n${sampled}`;
+
+    const result = await callGroq(
+      [{ role: "system", content: systemPrompt() }, { role: "user", content: prompt }],
+      1500
+    );
     onProgress({ phase: "done", done: 1, total: 1 });
-    return summary;
-  }
+    return result;
 
-  const partials = [];
-  for (let i = 0; i < total; i++) {
-    onProgress({ phase: "summarizing", done: i, total });
-    const partial = await summarizeChunk(chunks[i], i, total, fileName, lang);
-    partials.push(partial);
-    onProgress({ phase: "summarizing", done: i + 1, total });
+  } catch (err) {
+    // ── Strategy C: EMERGENCY FALLBACK ────────────────────────────────────────
+    // If we hit persistent rate limits or server errors, don't just crash.
+    // Truncate text massively (3k chars) and ask for a tiny outline with the fast model.
+    console.warn("Primary AI calls failed. Attempting emergency fallback...", err);
+    onProgress({ phase: "summarizing", done: 0, total: 1 });
+    
+    // Just take the first 3000 chars to guarantee it fits in the smallest rate limit
+    const emergencySample = text.slice(0, 3000);
+    const prompt = `${emergencyOutlineStructure()}\n\n---DOKUMENTO (Simula lamang)---\n${emergencySample}`;
+    
+    // Call the fast model directly with a tiny max_token budget
+    const result = await fetchGroq(
+      GROQ_MODEL_FAST,
+      [{ role: "system", content: systemPrompt() }, { role: "user", content: prompt }],
+      350
+    );
+    onProgress({ phase: "done", done: 1, total: 1 });
+    return result;
   }
-
-  onProgress({ phase: "merging", done: total, total });
-  const final = await mergeSummaries(partials, fileName, lang);
-  onProgress({ phase: "done", done: total, total });
-  return final;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -449,7 +534,6 @@ export default function MagsuriTayo({ onBack }) {
   const [progress,   setProgress]   = useState(null);
   const [summary,    setSummary]    = useState("");
   const [error,      setError]      = useState("");
-  const [lang,       setLang]       = useState("fil");
   const [copied,     setCopied]     = useState(false);
   const [remaining,  setRemaining]  = useState(getRemainingRequests);
 
@@ -529,7 +613,11 @@ export default function MagsuriTayo({ onBack }) {
         throw new Error("Ang dokumento ay masyadong maikli o halos walang text. Tiyaking hindi ito blank o image-only na file.");
       }
 
-      const result = await summarizeDocument(extractedText, file.name, lang, (prog) => setProgress(prog));
+      // Auto-detect mode: docs within single-call budget get full summary,
+      // very long docs get key ideas via smart sampling (1 API call always)
+      const autoMode = extractedText.length <= SINGLE_CALL_MAX ? "full" : "keys";
+
+      const result = await summarizeDocument(extractedText, file.name, "fil", autoMode, (prog) => setProgress(prog));
 
       if (!result?.trim()) throw new Error("Walang buod na natanggap mula sa modelo. Subukan ulit.");
       setSummary(result);
@@ -584,21 +672,13 @@ export default function MagsuriTayo({ onBack }) {
           P<span className="ms-title-gold">ANURI</span>
         </h1>
         <p className="ms-subtitle">
-          I-upload ang iyong dokumento
+          I-upload ang iyong dokumento para suriin
         </p>
       </div>
 
       {/* Main Card */}
       <div className="ms-card">
         <RateBadge remaining={remaining} />
-
-        {/* Language */}
-        <div className="ms-label">Wika ng Buod</div>
-        <div className="ms-lang">
-          <button className={`ms-lang-btn${lang === "fil" ? " on" : ""}`} onClick={() => setLang("fil")}>
-            🇵🇭 Filipino
-          </button>
-        </div>
 
         {/* Drop Zone */}
         <div className="ms-label">Dokumento</div>
@@ -618,7 +698,7 @@ export default function MagsuriTayo({ onBack }) {
             </svg>
           </div>
           <p className="ms-drop-text">I-drag dito ang iyong file, o mag-click para pumili</p>
-          <p className="ms-drop-sub">PDF, DOCX · Max 20 MB </p>
+          <p className="ms-drop-sub">PDF, DOCX · Max 100 MB </p>
         </div>
         <input
           ref={fileRef}
@@ -722,7 +802,7 @@ export default function MagsuriTayo({ onBack }) {
                   <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
                   <polyline points="14 2 14 8 20 8" />
                 </svg>
-                Buod
+                {fileStats?.chunks > 1 ? "Pangunahing Ideya" : "Buod"}
               </span>
               {file?.name}
             </div>

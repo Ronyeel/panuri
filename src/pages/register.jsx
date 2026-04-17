@@ -4,6 +4,8 @@ import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
 import { doc, setDoc } from 'firebase/firestore'
 import { auth, db } from '../API/firebase'
 import { useUI } from '../context/UIContext'
+import MascotBubble from '../components/MascotBubble'
+import TermsModal from '../components/TermsModal'
 import './auth.css'
 
 function firebaseError(code) {
@@ -35,6 +37,7 @@ export default function Registration() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [loading, setLoading]         = useState(false)
   const [shake, setShake]             = useState(false)
+  const [modalType, setModalType]     = useState(null) // null, 'privacy', or 'terms'
 
   useEffect(() => { firstRef.current?.focus() }, [])
 
@@ -110,7 +113,9 @@ export default function Registration() {
     <div className="auth-root">
       <div className={`auth-card${shake ? ' auth-card--shake' : ''}`}>
         <div className="auth-brand">
-          <div className="auth-hero-image"></div>
+          <div className="auth-hero-image">
+            <MascotBubble mode="register" />
+          </div>
         </div>
         <div className="auth-right">
           <div className="auth-header-center">
@@ -229,9 +234,9 @@ export default function Registration() {
                 <input type="checkbox" checked={form.agreedToTerms} onChange={handleChange('agreedToTerms')} />
                 <span className="auth-terms-text">
                   I agree to the{' '}
-                  <a className="auth-terms-link" href="/privacy-policy">Privacy Policy</a>
+                  <button type="button" className="auth-terms-link" onClick={() => setModalType('privacy')}>Privacy Policy</button>
                   {' '}and{' '}
-                  <a className="auth-terms-link" href="/terms">User Terms and Condition</a>
+                  <button type="button" className="auth-terms-link" onClick={() => setModalType('terms')}>User Terms and Condition</button>
                 </span>
               </label>
               {errors.terms && <span className="auth-error-msg" role="alert" style={{ display: 'block', marginTop: '0.25rem' }}>{errors.terms}</span>}
@@ -247,6 +252,10 @@ export default function Registration() {
           </p>
         </div>
       </div>
+      
+      {modalType && (
+        <TermsModal type={modalType} onClose={() => setModalType(null)} />
+      )}
     </div>
   )
 }

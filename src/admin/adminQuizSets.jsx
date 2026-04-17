@@ -5,7 +5,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { supabase } from '../API/supabase'
-import { MdClose, MdAdd, MdEdit, MdDelete, MdSearch, MdFolder, MdInfo, MdHelpOutline, MdExpandMore, MdInventory, MdWarning, MdInbox } from 'react-icons/md'
+import { MdClose, MdAdd, MdEdit, MdDelete, MdSearch, MdFolder, MdInfo, MdHelpOutline, MdExpandMore, MdInventory, MdWarning, MdInbox, MdMoreVert } from 'react-icons/md'
 import { useUI } from '../context/UIContext'
 import './adminQuiz.css'
 
@@ -236,8 +236,13 @@ export default function AdminQuizSets() {
   const [editingQ,    setEditingQ]    = useState(null)
   const [savingQ,     setSavingQ]     = useState(false)
   const [qError,      setQError]      = useState('')
+  const [activeSetMenuId, setActiveSetMenuId] = useState(null)
+  const [activeQMenuId, setActiveQMenuId] = useState(null)
 
   const titleRef = useRef(null)
+  const activeSetRef = useRef(null)
+  
+  useEffect(() => { activeSetRef.current = activeSet }, [activeSet])
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
 
@@ -251,8 +256,6 @@ export default function AdminQuizSets() {
     setLoadingSets(false)
   }, [])
 
-  useEffect(() => { fetchSets() }, [fetchSets])
-
   const fetchQuestions = useCallback(async (setId) => {
     setLoadingQ(true)
     const { data, error } = await supabase
@@ -263,6 +266,18 @@ export default function AdminQuizSets() {
     if (!error) setQuestions(data ?? [])
     setLoadingQ(false)
   }, [])
+
+  useEffect(() => {
+    fetchSets()
+    const channel = supabase.channel('quiz_admin')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_sets' }, fetchSets)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_questions' }, () => {
+        fetchSets()
+        if (activeSetRef.current) fetchQuestions(activeSetRef.current.id)
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [fetchSets, fetchQuestions])
 
   const openSet = (s) => { setActiveSet(s); fetchQuestions(s.id) }
 
@@ -510,9 +525,19 @@ export default function AdminQuizSets() {
                         <div className="qz-set-card-main">
                           <div className="qz-set-card-top">
                             <span className="qz-set-title">{s.title}</span>
-                            <div className="qz-set-card-actions" onClick={e => e.stopPropagation()}>
-                              <button className="qz-icon-btn qz-icon-btn--edit"   onClick={e => openEditSet(s, e)}              title="I-edit">    <EditIcon />   </button>
-                              <button className="qz-icon-btn qz-icon-btn--delete" onClick={e => handleDeleteSet(s.id, s.title, e)} title="Tanggalin"><DeleteIcon /> </button>
+                            <div className="qz-set-card-actions" onClick={e => e.stopPropagation()} style={{ position: 'relative' }}>
+                              <button
+                                className="ep-kebab-btn"
+                                onClick={() => setActiveSetMenuId(activeSetMenuId === s.id ? null : s.id)}
+                              >
+                                <MdMoreVert size={20} />
+                              </button>
+                              {activeSetMenuId === s.id && (
+                                <div className="ep-kebab-menu" style={{ right: '0' }}>
+                                  <button className="ep-kebab-item" onClick={e => { openEditSet(s, e); setActiveSetMenuId(null); }}>Edit</button>
+                                  <button className="ep-kebab-item ep-kebab-item--danger" onClick={e => { handleDeleteSet(s.id, s.title, e); setActiveSetMenuId(null); }}>Delete</button>
+                                </div>
+                              )}
                             </div>
                           </div>
                           {s.description && <p className="qz-set-desc">{s.description}</p>}
@@ -580,9 +605,19 @@ export default function AdminQuizSets() {
                         )}
                       </div>
                     </div>
-                    <div className="qz-question-actions">
-                      <button className="qz-icon-btn qz-icon-btn--edit"   onClick={() => openEditQ(q)}           title="I-edit">    <EditIcon />   </button>
-                      <button className="qz-icon-btn qz-icon-btn--delete" onClick={() => handleDeleteQ(q.id, q.question)} title="Tanggalin"><DeleteIcon /> </button>
+                    <div className="qz-question-actions" style={{ position: 'relative' }}>
+                      <button
+                        className="ep-kebab-btn"
+                        onClick={() => setActiveQMenuId(activeQMenuId === q.id ? null : q.id)}
+                      >
+                        <MdMoreVert size={20} />
+                      </button>
+                      {activeQMenuId === q.id && (
+                        <div className="ep-kebab-menu" style={{ right: '0' }}>
+                          <button className="ep-kebab-item" onClick={() => { openEditQ(q); setActiveQMenuId(null); }}>Edit</button>
+                          <button className="ep-kebab-item ep-kebab-item--danger" onClick={() => { handleDeleteQ(q.id, q.question); setActiveQMenuId(null); }}>Delete</button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

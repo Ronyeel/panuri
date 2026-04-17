@@ -27,7 +27,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 3rem 1rem 6rem;
+  padding: var(--page-pad-y) var(--page-pad-x);
   font-family: var(--font-primary);
   color: var(--text);
 }
@@ -78,7 +78,7 @@
   text-align: center;
   margin-bottom: 2.5rem;
   width: 100%;
-  max-width: 680px;
+  max-width: var(--container-sm);
 }
 
 .ms-eyebrow {
@@ -137,7 +137,7 @@
   border: 1px solid var(--border);
   border-radius: 16px;
   width: 100%;
-  max-width: 680px;
+  max-width: var(--container-sm);
   padding: 2rem;
   margin-bottom: 1rem;
   position: relative;
@@ -327,7 +327,7 @@
 /* ── ERROR ── */
 .ms-error {
   width: 100%;
-  max-width: 680px;
+  max-width: var(--container-sm);
   background: var(--red-lt);
   border: 1px solid rgba(232,25,44,0.3);
   border-radius: 10px;
@@ -344,7 +344,7 @@
 /* ── SUBMIT BUTTON ── */
 .ms-btn-row {
   width: 100%;
-  max-width: 680px;
+  max-width: var(--container-sm);
   margin-bottom: 1rem;
 }
 .ms-btn {
@@ -413,7 +413,7 @@
   border: 1px solid var(--border);
   border-radius: 16px;
   width: 100%;
-  max-width: 680px;
+  max-width: var(--container-sm);
   padding: 2rem;
   position: relative;
   overflow: hidden;
@@ -623,9 +623,6 @@
   .ms-summary {
     padding: 1.25rem;
     border-radius: 12px;
-  }
-  .ms-root {
-    padding: 1.5rem 0.75rem 4rem;
   }
   .ms-btn {
     border-radius: 10px;

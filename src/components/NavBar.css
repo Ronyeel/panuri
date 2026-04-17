@@ -1,5 +1,3 @@
-
-
 :root {
   --gold:       #f5c518;
   --gold-dim:   rgba(245, 197, 24, 0.12);
@@ -29,8 +27,7 @@
 }
 
 .navbar-inner {
-  
-  padding: 0 1.5rem 0 0;    /* ← no left padding; logo block handles it */
+  padding: 0 1.5rem 0 0;
   height: var(--navbar-h);
   display: flex;
   align-items: center;
@@ -41,28 +38,23 @@
 .navbar-logo {
   text-decoration: none;
   display: flex;
-  flex-direction: column;
-  gap: 1px;
-  line-height: 1;
+  align-items: center;
   flex-shrink: 0;
-  width: var(--sidebar-w);           /* ← matches sidebar width dynamically */
+  width: var(--sidebar-w);
   padding-left: clamp(10px, 1.5vw, 20px);
   transition: opacity 0.2s;
 }
 
 .navbar-logo:hover { opacity: 0.85; }
 
-.logo-line1 {
-  font-family: var(--font-display);
-  font-size: 0.6rem;
-  font-weight: 700;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: var(--gold);
-  opacity: 0.75;
+.navbar-logo-img {
+  height: 64px;
+  width: auto;
+  object-fit: contain;
+  display: block;
 }
 
-.logo-line2 {
+.navbar-logo-text {
   font-family: var(--font-accent);
   font-size: 1.15rem;
   font-weight: 900;
@@ -409,7 +401,6 @@
   border-top: 1px solid rgba(245, 197, 24, 0.1);
   box-shadow: 0 10px 30px rgba(0,0,0,0.6);
   
-  /* Performant Hardware-Accelerated Animations */
   opacity: 0;
   visibility: hidden;
   transform: translateY(-8px);
@@ -571,6 +562,6 @@
 }
 
 @media (max-width: 400px) {
-  .navbar-inner { padding: 0 1rem; height: 56px; }
-  .logo-line2   { font-size: 1rem; }
+  .navbar-inner { padding: 0 1rem; height: 60px; }
+  .navbar-logo-img { height: 52px; }
 }

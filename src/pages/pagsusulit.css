@@ -2,7 +2,7 @@
 .pagsuslit {
   background: #0d0d0d;
   background: radial-gradient(ellipse at top center, #1a1a1a 0%, #0d0d0d 100%);
-  padding: 5rem 0 6rem;
+  padding: var(--page-pad-y) 0;
   position: relative;
   overflow: hidden;
 }
@@ -37,9 +37,9 @@
 .pagsuslit-inner {
   position: relative;
   z-index: 1;
-  max-width: 860px;
+  max-width: var(--container-md);
   margin: 0 auto;
-  padding: 0 2rem;
+  padding: 0 var(--page-pad-x);
 }
 
 /* ── Section Header ──────────────────────────────────────── */
