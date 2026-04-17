@@ -9,28 +9,29 @@ const METO_CARDS = [
 
 const TEAM_MEMBERS = [
   {
-    name: 'EDWIN R. ICHIANO PhD',
+    name: 'EDWIN R. ICHIANO PHD',
     role: 'Tagapayo',
     email: '',
-    img: '/edwin.jpg'
+    img: '/edwin.png',
+    imgStyle: { objectFit: 'contain', transform: 'scale(1.8)', objectPosition: 'center center' }
   },
   {
-    name: 'RYAN S. RODRIGUEZ, PhD',
+    name: 'RYAN S. RODRIGUEZ, PHD',
     role: 'Riserts Propesor',
     email: '',
-    img: '/ryan.jpg'
+    img: '/ryan.png'
   },
   {
     name: 'John Rey G. Trapalgar',
     role: 'May-Akda',
     email: 'sirtrapssy@gmail.com',
-    img: '/john.jpg'
+    img: '/johnrey.png'
   },
   {
     name: 'Neziel D. Alvarez',
     role: 'May-Akda',
     email: 'zyriel.alvarez@gmail.com',
-    img: '/neziel.jpg'
+    img: '/neziel.png'
   }
 ]
 
@@ -69,16 +70,7 @@ export default function TungkolSaAmin() {
                 Ang pagsusuri ay hindi lamang isang akademikong gawain kundi isang mahalagang kasanayan na humuhubog sa kritikal na pag-iisip, pag-unawa sa konteksto, at pag-uugnay ng panitikan sa tunay na karanasan ng tao at lipunan. Ayon sa Seksyon 1 ng CMO Memorandum Order (CMO) Blg. 21, s. 2017, na tumatalakay sa "Bachelor of Arts in Literature", malinaw na itinakda ng CHED ang inaasahang kaalaman at kasanayan ng mga mag-aaral, kabilang ang kakayahan sa pagsusuri at pagpapakahulugan ng akdang pampanitikan.
               </p>
             </div>
-            <div className="tsa-intro-images">
-              <div className="tsa-img-card tsa-img-card--1">
-                <span className="tsa-img-label">Image</span>
-                <img src="" alt="Panitikan" />
-              </div>
-              <div className="tsa-img-card tsa-img-card--2">
-                <span className="tsa-img-label">Image</span>
-                <img src="" alt="Mga Libro" />
-              </div>
-            </div>
+
           </div>
         </section>
 
@@ -140,7 +132,13 @@ export default function TungkolSaAmin() {
             {TEAM_MEMBERS.map((member) => (
               <div className="tsa-team-card" key={member.name}>
                 <div className="tsa-team-img-wrapper">
-                  <img src={member.img} alt={member.name} className="tsa-team-img" onError={(e) => { e.target.style.display = 'none' }} />
+                  <img
+                    src={member.img}
+                    alt={member.name}
+                    className="tsa-team-img"
+                    style={member.imgStyle || {}}
+                    onError={(e) => { e.target.style.display = 'none' }}
+                  />
                 </div>
                 <div className="tsa-team-info">
                   <h4 className="tsa-team-name">{member.name}</h4>

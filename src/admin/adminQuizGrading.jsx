@@ -50,11 +50,12 @@ function TypeBadge({ type }) {
 }
 
 function ScorePill({ score, total }) {
-  const pct = total > 0 ? Math.round((score / total) * 100) : 0
+  const isCustom = score > total
+  const pct = total > 0 ? (isCustom ? Math.min(100, score) : Math.round((score / total) * 100)) : 0
   const color = pct >= 75 ? '#22d3a5' : pct >= 50 ? '#f5b942' : '#ff5f6d'
   return (
     <span className="qz-score-pill" style={{ '--sc': color }}>
-      {score}/{total} <em>{pct}%</em>
+      {isCustom ? `${score} Pts` : `${score}/${total}`} <em>{pct}%</em>
     </span>
   )
 }
@@ -63,6 +64,7 @@ function ScorePill({ score, total }) {
 
 function ResponseCard({ response: r, index, saving, onGrade }) {
   const [feedback, setFeedback] = useState(r.admin_feedback ?? '')
+  const [points, setPoints] = useState(r.points_awarded ?? '')
   const q = r.quiz_questions
   const isEssay = q?.type === 'essay'
 
@@ -137,25 +139,28 @@ function ResponseCard({ response: r, index, saving, onGrade }) {
               placeholder="Isulat ang iyong komento para sa mag-aaral…"
             />
           </div>
-          <div className="qz-grade-actions">
+          <div className="qz-grade-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <input
+              type="number"
+              className="qz-input"
+              style={{ width: '100px' }}
+              placeholder="Puntos"
+              min="0"
+              value={points}
+              onChange={e => setPoints(e.target.value)}
+            />
             <button
-              className={`qz-grade-btn qz-grade-btn--correct${r.is_correct === true ? ' qz-grade-btn--selected' : ''}`}
-              disabled={saving}
-              onClick={() => onGrade(r.id, true, feedback)}
+              className="qz-grade-btn qz-grade-btn--correct"
+              style={{ flex: 1, justifyContent: 'center' }}
+              disabled={saving || points === ''}
+              onClick={() => onGrade(r.id, true, feedback, parseInt(points, 10))}
             >
-              {saving ? <div className="qz-spinner qz-spinner--sm" /> : '✓'} Tama
-            </button>
-            <button
-              className={`qz-grade-btn qz-grade-btn--wrong${r.is_correct === false ? ' qz-grade-btn--selected' : ''}`}
-              disabled={saving}
-              onClick={() => onGrade(r.id, false, feedback)}
-            >
-              {saving ? <div className="qz-spinner qz-spinner--sm" /> : '✕'} Mali
+              {saving ? <div className="qz-spinner qz-spinner--sm" /> : '✓'} I-save ang Puntos
             </button>
           </div>
           {r.graded_at && (
             <p className="qz-graded-at">
-              Na-grade noong {new Date(r.graded_at).toLocaleString('fil-PH')}
+              Na-grade noong {new Date(r.graded_at).toLocaleString('fil-PH')} (Puntos: {r.points_awarded ?? '—'})
             </p>
           )}
         </div>
@@ -202,11 +207,26 @@ export default function AdminQuizGrading() {
       .order('finished_at', { ascending: false })
     if (gradingTab === 'pending') query = query.eq('status', 'pending_review')
     const { data, error } = await query
-    if (!error) setAttempts(data ?? [])
+    if (!error) {
+      const fresh = data ?? []
+      setAttempts(fresh)
+      // If the currently open attempt was deleted, close the panel
+      setActiveAttempt(prev => {
+        if (!prev) return prev
+        const stillExists = fresh.some(a => a.id === prev.id)
+        return stillExists ? prev : null
+      })
+    }
     setLoading(false)
   }, [gradingTab])
 
-  useEffect(() => { fetchAttempts() }, [fetchAttempts])
+  useEffect(() => { 
+    fetchAttempts() 
+    const channel = supabase.channel('grading_admin_attempts')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts' }, fetchAttempts)
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [fetchAttempts])
 
   // ── Fetch all attempts (responses tab) ────────────────────────────────────
 
@@ -229,8 +249,38 @@ export default function AdminQuizGrading() {
     if (data) setAllSets(data)
   }, [])
 
+  const fetchResponses = useCallback(async (attempt) => {
+    setLoadingR(true)
+    const { data, error } = await supabase
+      .from('quiz_responses')
+      .select(`
+        id, answer_text, is_correct, needs_grading, admin_feedback, graded_at, points_awarded,
+        quiz_questions ( question, type, correct_tf, correct_index, choices, explanation )
+      `)
+      .eq('attempt_id', attempt.id)
+      .order('created_at', { ascending: true })
+    if (!error) setResponses(data ?? [])
+    setLoadingR(false)
+  }, [])
+
+  useEffect(() => {
+    if (activeAttempt) fetchResponses(activeAttempt)
+    const channel = supabase.channel(`grading_admin_responses_${activeAttempt?.id || 'none'}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_responses', filter: activeAttempt ? `attempt_id=eq.${activeAttempt.id}` : undefined }, () => {
+        if (activeAttempt) fetchResponses(activeAttempt)
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [activeAttempt?.id, activeAttempt, fetchResponses])
+
   useEffect(() => {
     if (mainTab === 'responses') { fetchAllAttempts(); fetchAllSets() }
+    const channel = supabase.channel('grading_admin_all_attempts')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts' }, () => {
+        if (mainTab === 'responses') fetchAllAttempts()
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
   }, [mainTab, fetchAllAttempts, fetchAllSets])
 
   // ── App icon / browser-tab badge ─────────────────────────────────────────
@@ -265,17 +315,8 @@ export default function AdminQuizGrading() {
   // ── Fetch responses for grading panel ────────────────────────────────────
 
   const openAttempt = async (attempt) => {
-    setActiveAttempt(attempt); setLoadingR(true)
-    const { data, error } = await supabase
-      .from('quiz_responses')
-      .select(`
-        id, answer_text, is_correct, needs_grading, admin_feedback, graded_at,
-        quiz_questions ( question, type, correct_tf, correct_index, choices, explanation )
-      `)
-      .eq('attempt_id', attempt.id)
-      .order('created_at', { ascending: true })
-    if (!error) setResponses(data ?? [])
-    setLoadingR(false)
+    setActiveAttempt(attempt)
+    await fetchResponses(attempt)
   }
 
   // ── Fetch responses for a student attempt (responses tab) ─────────────────
@@ -288,7 +329,7 @@ export default function AdminQuizGrading() {
     const { data, error } = await supabase
       .from('quiz_responses')
       .select(`
-        id, answer_text, is_correct, needs_grading, admin_feedback, graded_at,
+        id, answer_text, is_correct, needs_grading, admin_feedback, graded_at, points_awarded,
         quiz_questions ( question, type, correct_tf, correct_index, choices, explanation )
       `)
       .eq('attempt_id', attemptId)
@@ -299,18 +340,26 @@ export default function AdminQuizGrading() {
 
   // ── Grade essay ───────────────────────────────────────────────────────────
 
-  const gradeResponse = async (responseId, isCorrect, feedback) => {
+  const gradeResponse = async (responseId, isCorrect, feedback, points = null) => {
     setSaving(prev => ({ ...prev, [responseId]: true }))
-    const { error } = await supabase.from('quiz_responses').update({
-      is_correct:    isCorrect,
+    
+    const updatePayload = {
+      is_correct:    points !== null ? (points > 0) : isCorrect,
       needs_grading: false,
       admin_feedback: feedback || null,
       graded_at:     new Date().toISOString(),
-    }).eq('id', responseId)
+    }
+    
+    // Only update points_awarded if it's provided (for essays)
+    if (points !== null) {
+      updatePayload.points_awarded = points
+    }
+
+    const { error } = await supabase.from('quiz_responses').update(updatePayload).eq('id', responseId)
 
     if (!error) {
       setResponses(prev => prev.map(r => r.id === responseId
-        ? { ...r, is_correct: isCorrect, needs_grading: false, admin_feedback: feedback, graded_at: new Date().toISOString() }
+        ? { ...r, ...updatePayload }
         : r))
       await recalcScore(activeAttempt.id)
     }
@@ -320,12 +369,17 @@ export default function AdminQuizGrading() {
   const recalcScore = async (attemptId) => {
     const { data } = await supabase
       .from('quiz_responses')
-      .select('is_correct, needs_grading')
+      .select('is_correct, needs_grading, points_awarded')
       .eq('attempt_id', attemptId)
     if (!data) return
 
     const allGraded  = data.every(r => !r.needs_grading)
-    const finalScore = data.filter(r => r.is_correct === true).length
+    // Calculate total score based on points_awarded OR default to 1 point if is_correct is true
+    const finalScore = data.reduce((acc, r) => {
+      if (r.points_awarded != null) return acc + r.points_awarded
+      if (r.is_correct === true) return acc + 1
+      return acc
+    }, 0)
     const status     = allGraded ? 'completed' : 'pending_review'
 
     await supabase
@@ -359,8 +413,7 @@ export default function AdminQuizGrading() {
       {/* ── Page Header ── */}
       <div className="qz-page-header">
         <div>
-          <p className="qz-eyebrow">Palaisipan · Pamamahala</p>
-          <h1 className="qz-page-title">Mga Sagot at Grading</h1>
+          <h1 className="qz-page-title">Mga Sagot at Pagmamarka</h1>
         </div>
       </div>
 
@@ -660,15 +713,18 @@ export default function AdminQuizGrading() {
                                   <div className="qz-detail-item-header">
                                     <span className="qz-detail-qnum">Q{idx + 1}</span>
                                     <TypeBadge type={q?.type} />
-                                    {r.is_correct === true  && <span className="qz-result-correct">✓ Tama</span>}
-                                    {r.is_correct === false && <span className="qz-result-wrong">✕ Mali</span>}
+                                    {q?.type === 'essay' && !r.needs_grading && r.points_awarded != null && (
+                                      <span className="qz-result-correct">Puntos: {r.points_awarded}</span>
+                                    )}
+                                    {q?.type !== 'essay' && r.is_correct === true  && <span className="qz-result-correct">✓ Tama</span>}
+                                    {q?.type !== 'essay' && r.is_correct === false && <span className="qz-result-wrong">✕ Mali</span>}
                                     {r.needs_grading        && <span className="qz-needs-grading-tag">Kailangan ng Grading</span>}
                                   </div>
                                   <p className="qz-detail-question">{q?.question}</p>
                                   <div className="qz-detail-answers">
                                     <div>
                                       <div className="qz-mini-label">Sagot</div>
-                                      <div className={`qz-answer-box qz-answer-box--sm${r.is_correct === true ? ' qz-answer-box--correct' : r.is_correct === false ? ' qz-answer-box--wrong' : ''}`}>
+                                      <div className={`qz-answer-box qz-answer-box--sm${q?.type !== 'essay' && r.is_correct === true ? ' qz-answer-box--correct' : q?.type !== 'essay' && r.is_correct === false ? ' qz-answer-box--wrong' : ''}`}>
                                         {displayAnswer || <em>Walang sagot</em>}
                                       </div>
                                     </div>

@@ -55,7 +55,7 @@ export default function AdminDashboard() {
   const deleteUser = async (uid, username) => {
     const ok = await confirm({
       title:        `Tanggalin si "${username}"?`,
-      body:         'Matatanggal ang account sa database. Hindi ito maibabalik.',
+      body:         'Matatanggal ang account sa website nang permanente. Hindi ito maibabalik.',
       confirmLabel: 'Tanggalin',
       danger:       true,
     })

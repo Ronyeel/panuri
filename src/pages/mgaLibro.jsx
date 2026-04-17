@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import localBooks from '../data/books.json'
 import { supabase } from '../API/supabase'
+import { preloadPdfs } from '../pages/FlipBook'
 import './mgaLibro.css'
 
 const BOOK_W   = 174
@@ -207,6 +208,16 @@ export default function MgaLibro() {
     el.style.setProperty('--amb-b', ambColor.b)
   }, [ambColor])
 
+  // ── Background Preloading ─────────────────────────────────────────────────
+  useEffect(() => {
+    if (books.length === 0) return
+    const timer = setTimeout(() => {
+      const urls = books.map(b => b.pdf).filter(Boolean)
+      preloadPdfs(urls)
+    }, 1500) // Start quickly after page load
+    return () => clearTimeout(timer)
+  }, [books])
+
   // ── Dust particles ────────────────────────────────────────────────────────
   useEffect(() => {
     const canvas  = canvasRef.current
@@ -373,7 +384,10 @@ export default function MgaLibro() {
                     onMouseLeave={handleBookLeave}
                   >
                     <div className="ml-book-inner">
-                      <img src={b.cover} alt={b.title} className="ml-cover-img" />
+                      {b.cover
+                        ? <img src={b.cover} alt={b.title} className="ml-cover-img" />
+                        : <div className="ml-cover-fallback">{b.title?.charAt(0)}</div>
+                      }
                       <div className="ml-book-overlay">
                         <span className="ml-book-title-hover">{b.title}</span>
                         <span className="ml-book-year-hover">{b.genre} · {b.year}</span>

@@ -7,11 +7,11 @@
   --gold-dim: rgba(245,197,24,0.10);
   --red-dk:   #8a0a0f;
   --red-dim:  rgba(191,30,46,0.10);
-  --black:    #0a0a0a;
-  --black-2:  #111111;
-  --black-3:  #161616;
-  --smoke:    #1e1e1e;
-  --mist:     var(--muted, #7a7060);
+  --black:    #16161a;
+  --black-2:  #1d1d24;
+  --black-3:  #24242a;
+  --smoke:    #2a2a32;
+  --mist:     var(--muted, #8c8374);
   --silver:   #9a9080;
   --silver-lt:#b8b0a0;
   --cream:    var(--text, #e4dccf);
@@ -233,9 +233,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: transparent;
-  border: 1px solid rgba(191,30,46,0.25);
-  color: var(--silver);
+  background: rgba(191,30,46,0.08);
+  border: 1px solid rgba(191,30,46,0.45);
+  color: #e04040;
   padding: 10px 20px;
   font-family: var(--font-display);
   font-size: 0.72rem;
@@ -247,9 +247,9 @@
 }
 .prof-signout-btn svg { width: 14px; height: 14px; }
 .prof-signout-btn:hover {
-  border-color: var(--red);
-  color: #e04040;
-  background: rgba(191,30,46,0.05);
+  border-color: #e04040;
+  color: #ff5f5f;
+  background: rgba(191,30,46,0.15);
 }
 
 /* ─── Stats Row ──────────────────────────────────────────────── */

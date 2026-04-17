@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../API/supabase'
-import FlipBook from '../pages/FlipBook'
+import FlipBook, { preloadPdfs } from '../pages/FlipBook'
 import './Excerpt.css'
 
 // ── Intersection hook for scroll-reveal ──────────────────────────────────────
@@ -74,7 +74,7 @@ function ExcerptCard({ item, index, isActive, onClick, onRead }) {
       <div className="exc-card__cover-wrap">
         {hasCover && (
           <img
-            src={item.cover}
+            src={item.cover.startsWith('/') ? item.cover : item.cover.startsWith('http') ? item.cover : `/${item.cover}`}
             alt={`${item.bookTitle} cover`}
             className="exc-card__cover-img"
             onError={e => { e.currentTarget.style.display = 'none' }}
@@ -147,35 +147,60 @@ export default function ExcerptsPage() {
   const headerVisible = useIntersection(headerRef)
 
   // ── Fetch ───────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    async function fetchExcerpts() {
-      const { data, error } = await supabase
-        .from('excerpts')
-        .select('*')
-        .order('year', { ascending: true })
+  const fetchExcerpts = useCallback(async () => {
+    const [excRes, bookRes] = await Promise.all([
+      supabase.from('excerpts').select('*').order('year', { ascending: true }),
+      supabase.from('books').select('id, title, cover'),
+    ])
 
-      if (!error && data) {
-        const normalized = data.map(normalizeExcerpt)
-        setExcerpts(normalized)
+    if (!excRes.error && excRes.data) {
+      // Keep books as an array so we can use titlesMatch (partial) lookup
+      const books = (bookRes.data ?? []).filter(b => b.cover)
 
-        const params    = new URLSearchParams(window.location.search)
-        const bookParam = params.get('book')
-        const openRead  = params.get('read') === '1'
+      const normalized = excRes.data.map(row => {
+        const exc = normalizeExcerpt(row)
+        // Fall back to the matching book cover if excerpt has no cover
+        if (!exc.cover) {
+          const matched = books.find(b => titlesMatch(b.title, exc.bookTitle))
+          exc.cover = matched?.cover ?? null
+        }
+        return exc
+      })
+      setExcerpts(normalized)
 
-        if (bookParam) {
-          const decoded = decodeURIComponent(bookParam)
-          const match   = normalized.find(e => titlesMatch(e.bookTitle, decoded))
-          if (match) {
-            setActiveId(match.id)
-            if (openRead && match.pdf) setReaderBook(match)
-          }
+      const params    = new URLSearchParams(window.location.search)
+      const bookParam = params.get('book')
+      const openRead  = params.get('read') === '1'
+
+      if (bookParam && !activeId) {
+        const decoded = decodeURIComponent(bookParam)
+        const match   = normalized.find(e => titlesMatch(e.bookTitle, decoded))
+        if (match) {
+          setActiveId(match.id)
+          if (openRead && match.pdf) setReaderBook(match)
         }
       }
-
-      setLoading(false)
     }
+    setLoading(false)
+  }, [activeId])
+
+  // ── Background Preloading ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (excerpts.length === 0) return
+    const timer = setTimeout(() => {
+      const urls = excerpts.map(e => e.pdf).filter(Boolean)
+      preloadPdfs(urls)
+    }, 1500) // Start quickly after page load
+    return () => clearTimeout(timer)
+  }, [excerpts])
+
+  useEffect(() => {
     fetchExcerpts()
-  }, [])
+    const channel = supabase.channel('excerpts_public')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'excerpts' }, fetchExcerpts)
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [fetchExcerpts])
 
   // ── Hash navigation — from search bar (/excerpts#<id>) ─────────────────────
   useEffect(() => {

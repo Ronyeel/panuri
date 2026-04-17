@@ -4,21 +4,21 @@
 
 /* ── Design tokens ──────────────────────────────────────────── */
 :root {
-  --exc-black:      #0a0a0a;
-  --exc-black-2:    #111111;
-  --exc-black-3:    #1a1a1a;
-  --exc-black-4:    #222222;
+  --exc-black:      #111111;
+  --exc-black-2:    #181818;
+  --exc-black-3:    #222222;
+  --exc-black-4:    #2a2a2a;
   --exc-red:        #d92b2b;
   --exc-red-dim:    rgba(217, 43, 43, 0.18);
-  --exc-red-glow:   rgba(217, 43, 43, 0.08);
+  --exc-red-glow:   rgba(217, 43, 43, 0.10);
   --exc-gold:       #f5c518;
-  --exc-gold-dim:   rgba(245, 197, 24, 0.15);
-  --exc-gold-glow:  rgba(245, 197, 24, 0.07);
+  --exc-gold-dim:   rgba(245, 197, 24, 0.18);
+  --exc-gold-glow:  rgba(245, 197, 24, 0.10);
   --exc-cream:      #f0ece4;
-  --exc-cream-60:   rgba(240, 236, 228, 0.6);
-  --exc-cream-30:   rgba(240, 236, 228, 0.3);
-  --exc-cream-10:   rgba(240, 236, 228, 0.08);
-  --exc-border:     rgba(245, 197, 24, 0.1);
+  --exc-cream-60:   rgba(240, 236, 228, 0.65);
+  --exc-cream-30:   rgba(240, 236, 228, 0.38);
+  --exc-cream-10:   rgba(240, 236, 228, 0.10);
+  --exc-border:     rgba(245, 197, 24, 0.14);
   --exc-border-act: rgba(217, 43, 43, 0.5);
 }
 
@@ -307,14 +307,17 @@
   border: 1px solid rgba(245, 197, 24, 0.08);
 }
 .exc-card__cover-img {
+  position: absolute; inset: 0;
   width: 100%; height: 100%;
   object-fit: cover;
   display: block;
+  z-index: 1;
 }
 .exc-card__cover-fallback {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
   background: linear-gradient(145deg, #1a1a1a, #111);
+  z-index: 0;
 }
 .exc-card__cover-fallback span {
   font-size: 2.2rem;

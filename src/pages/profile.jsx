@@ -155,8 +155,10 @@ const getAttemptTitle = (attempt) =>
 const formatDate = (iso) =>
   iso ? new Date(iso).toLocaleDateString('fil-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
 
-const calcPct = (score, total) =>
-  total > 0 ? Math.round((score / total) * 100) : 0
+const calcPct = (score, total) => {
+  if (total <= 0) return 0
+  return score > total ? Math.min(100, score) : Math.round((score / total) * 100)
+}
 
 const scoreColor = (pct) =>
   pct >= 75 ? '#22d3a5' : pct >= 50 ? '#f5b942' : '#ff5f6d'
@@ -167,13 +169,12 @@ function QuizReviewModal({ attempt, onClose }) {
   const [responses, setResponses] = useState([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  const fetchResponses = useCallback(() => {
     if (!attempt) return
-    setLoading(true)
     supabase
       .from('quiz_responses')
       .select(`
-        id, answer_text, is_correct, needs_grading, admin_feedback, graded_at,
+        id, answer_text, is_correct, needs_grading, admin_feedback, graded_at, points_awarded,
         quiz_questions ( question, type, correct_tf, correct_index, choices, explanation )
       `)
       .eq('attempt_id', attempt.id)
@@ -183,6 +184,18 @@ function QuizReviewModal({ attempt, onClose }) {
         setLoading(false)
       })
   }, [attempt?.id])
+
+  useEffect(() => {
+    if (!attempt) return
+    setLoading(true)
+    fetchResponses()
+
+    const channel = supabase.channel(`modal_responses_${attempt.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_responses' }, fetchResponses)
+      .subscribe()
+    
+    return () => supabase.removeChannel(channel)
+  }, [attempt?.id, fetchResponses])
 
   if (!attempt) return null
 
@@ -199,7 +212,7 @@ function QuizReviewModal({ attempt, onClose }) {
             <p className="prof-review-meta">
               Marka:{' '}
               <strong style={{ color: scoreColor(pct) }}>
-                {attempt.score}/{attempt.total_questions} ({pct}%)
+                {attempt.score > attempt.total_questions ? `${attempt.score} Pts` : `${attempt.score}/${attempt.total_questions}`} ({pct}%)
               </strong>
               {attempt.finished_at && <> · {formatDate(attempt.finished_at)}</>}
             </p>
@@ -258,7 +271,11 @@ function ResponseItem({ r, idx }) {
           {Q_TYPE_LABELS[q?.type] ?? 'Tanong'}
         </span>
         <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: resultColor }}>
-          {r.needs_grading ? '⏳ Hinihintay ang Pagsusuri' : r.is_correct ? '✓ Tama' : '✕ Mali'}
+          {r.needs_grading 
+            ? '⏳ Hinihintay ang Pagsusuri' 
+            : isEssay 
+              ? (r.points_awarded != null ? `Puntos: ${r.points_awarded}` : 'Nasuri na')
+              : (r.is_correct ? '✓ Tama' : '✕ Mali')}
         </span>
       </div>
 
@@ -267,7 +284,7 @@ function ResponseItem({ r, idx }) {
       <div className="prof-review-answers">
         <div>
           <div className="prof-review-answer-label">Iyong Sagot</div>
-          <div className={`prof-review-answer-box${r.is_correct === true ? ' correct' : r.is_correct === false ? ' wrong' : ''}`}>
+          <div className={`prof-review-answer-box${isEssay ? '' : (r.is_correct === true ? ' correct' : r.is_correct === false ? ' wrong' : '')}`}>
             {displayAnswer || <em style={{ opacity: 0.5 }}>Walang sagot</em>}
           </div>
         </div>
@@ -300,7 +317,7 @@ function ResponseItem({ r, idx }) {
 function QuizSection({ userId, onStatsReady }) {
   const [attempts, setAttempts] = useState([])
   const [loading, setLoading] = useState(true)
-  const [reviewAttempt, setReviewAttempt] = useState(null)
+  const [reviewAttemptId, setReviewAttemptId] = useState(null)
 
   const liftStats = useCallback((data) => {
     const taken = data.length
@@ -338,8 +355,8 @@ function QuizSection({ userId, onStatsReady }) {
     if (!userId) return
     const channel = supabase
       .channel(`profile_attempts_${userId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts', filter: `user_uid=eq.${userId}` }, fetchAttempts)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'quiz_responses' }, fetchAttempts)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts' }, fetchAttempts)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_responses' }, fetchAttempts)
       .subscribe()
     return () => supabase.removeChannel(channel)
   }, [userId, fetchAttempts])
@@ -395,7 +412,7 @@ function QuizSection({ userId, onStatsReady }) {
               <span className="prof-quiz-table-col">Resulta</span>
               <span className="prof-quiz-table-col">Petsa</span>
             </div>
-            {attempts.map(a => <AttemptRow key={a.id} attempt={a} onReview={setReviewAttempt} />)}
+            {attempts.map(a => <AttemptRow key={a.id} attempt={a} onReview={(att) => setReviewAttemptId(att.id)} />)}
           </>
         ) : (
           <div className="prof-quiz-empty">
@@ -406,8 +423,8 @@ function QuizSection({ userId, onStatsReady }) {
         )}
       </div>
 
-      {reviewAttempt && (
-        <QuizReviewModal attempt={reviewAttempt} onClose={() => setReviewAttempt(null)} />
+      {reviewAttemptId && (
+        <QuizReviewModal attempt={attempts.find(a => a.id === reviewAttemptId)} onClose={() => setReviewAttemptId(null)} />
       )}
     </>
   )
@@ -430,7 +447,7 @@ function AttemptRow({ attempt, onReview }) {
         <span className="prof-quiz-row-review-hint">Tingnan ang Sagot →</span>
       </span>
       <span className="prof-quiz-row-score">
-        {attempt.score}/{attempt.total_questions}
+        {attempt.score > attempt.total_questions ? `${attempt.score} Pts` : `${attempt.score}/${attempt.total_questions}`}
         <span style={{ fontSize: 11, color: 'var(--mist, #888)', marginLeft: 4 }}>({pct}%)</span>
       </span>
       <span>

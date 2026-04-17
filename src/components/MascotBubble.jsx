@@ -70,6 +70,7 @@ export default function MascotBubble({ mode }) {
 
   return (
     <div className="mascot-bubble-container">
+      <img src="/mascot.png" alt="Panuri Mascot" className="auth-hero-mascot" />
       <div className="mascot-speech-bubble">
         <h4 className="mascot-bubble-name">Panuri</h4>
         <p className="mascot-bubble-text">
@@ -80,7 +81,6 @@ export default function MascotBubble({ mode }) {
           )}
         </p>
       </div>
-      <img src="/mascot.png" alt="Panuri Mascot" className="auth-hero-mascot" />
     </div>
   );
 }

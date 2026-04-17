@@ -164,9 +164,9 @@ async function fetchGroq(model, messages, maxTokens) {
     },
     body: JSON.stringify({ 
       model, 
-      temperature: 0.7, 
-      frequency_penalty: 0.6,
-      presence_penalty: 0.6,
+      temperature: 0.3, // Lower temperature for more factual, deterministic answers
+      frequency_penalty: 0.4, // Gentle penalty to avoid loops without breaking grammar
+      presence_penalty: 0.4,
       max_tokens: maxTokens, 
       messages 
     }),
@@ -224,53 +224,59 @@ async function callGroq(messages, maxTokens = 1024) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function systemPrompt() {
-  return `Ikaw ay isang mahusay na document analyst. Sumulat sa natural, malinaw, at propesyonal na Tagalog.
-Ibigay ang pinakamahalagang impormasyon mula sa teksto. Gawing maikli, madaling basahin, at gumamit ng iba't ibang paraan ng pagbuo ng pangungusap upang maging maganda ang daloy ng pagbasa.
-Iwasan ang pagiging paulit-ulit. Hayaan mong dumaloy nang natural ang iyong pagsusuri.`;
+  return `Ikaw ay isang propesyonal at mahusay na document analyst.
+Ang iyong layunin ay suriin ang ibinigay na dokumento at magbigay ng mataas na kalidad at napakalinaw na buod sa wikang Tagalog.
+
+MGA GABAY PARA SA PINAKAMAHUSAY NA BUOD:
+1. Maging tumpak, direkta, at nakatuon sa mga pangunahing punto.
+2. Tiyaking ang bawat pangungusap at bullet point ay naglalaman ng sariwa at natatanging impormasyon.
+3. Huwag paikot-ikot ang paliwanag. Kung naipaliwanag na ang isang ideya, lumipat na sa susunod na mahalagang detalye.
+4. Gumamit ng propesyonal at malinaw na bokabularyo.`;
 }
 
 function keyIdeasStructure(fileName) {
-  return `Ibigay ang isang maikli at direktang buod ng "${fileName}".
+  return `Gumawa ng isang pormal at direktang pagsusuri para sa dokumentong pinamagatang "${fileName}".
 
 **Abstrak:**
-(Magbigay ng 2-3 pangungusap na malinaw na nagbubuod sa kabuuang mensahe ng dokumento. Isulat nang natural.)
+(Ibigay ang pangkalahatang ideya o layunin ng dokumento sa 2-3 malinaw na pangungusap.)
 
 **Mga Pangunahing Ideya:**
-(Ilista ang mga pinakamahalagang konsepto gamit ang 5-7 na maikling bullet points. Hayaan mong maging natural at iba-iba ang pagkakabuo ng bawat punto.)
+(Magbigay ng 4 - 5 bullet points na naglalaman ng mga pinakamahalagang detalye, konsepto, o argumento mula sa dokumento. Tiyaking magkakaiba at makabuluhan ang bawat punto.)
 - 
 - 
 
-(Huwag nang magdagdag ng anumang ibang seksyon. Panatilihing maikli at direkta ang sagot.)`;
+(Panatilihing maikli at direkta ang sagot. Huwag magdagdag ng ibang seksyon.)`;
 }
 
 function fullSummaryStructure(fileName) {
-  return `Ibigay ang isang maikli at direktang buod ng "${fileName}".
+  return `Gumawa ng isang komprehensibo ngunit direktang pagsusuri para sa dokumentong pinamagatang "${fileName}".
 
 **Abstrak:**
-(Magbigay ng malinaw na buod ng buong dokumento gamit ang 2-4 na natural na pangungusap.)
+(Isang maikling buod ng buong dokumento sa 2-4 na pangungusap.)
 
 **Mga Pangunahing Ideya:**
-(Ilista ang mga pinakamahalagang punto at argumento gamit ang 5-8 bullet points. Isulat nang malinaw at may magandang daloy ang bawat isa.)
+(Ilista ang 5-6 na pinakamahahalagang detalye o aral mula sa dokumento gamit ang bullet points. Tiyaking bawat bullet ay may natatanging halaga at hindi inuulit ang nasa Abstrak.)
 - 
 - 
 
-(Huwag nang magdagdag ng anumang ibang seksyon. Panatilihing maikli at madaling basahin.)`;
+(Huwag magdagdag ng iba pang seksyon maliban sa mga hinihingi sa itaas.)`;
 }
 
 function emergencyOutlineStructure() {
-  return `TALA: Ito ay isang emergency fallback dahil sa server overload. Magbigay lamang ng napakaikling buod.
+  return `TALA: Emergency fallback dahil sa server overload. Magbigay ng napakaikling buod — walang paulit-ulit na ideya.
 
 **Pangunahing Paksa:**
-[1-2 pangungusap]
+[1-2 pangungusap — direkta, walang padding]
 
 **Mga Susing Ideya:**
+(5 bullet — bawat isa ay BAGONG ideya, hindi muling pagsasabi ng Paksa o ng ibang bullet)
 - [punto 1]
 - [punto 2]
 - [punto 3]
 - [punto 4]
 - [punto 5]
 
-(Huwag magdagdag ng iba pang seksyon. Maging direkta at maikli.)`;
+(Huwag magdagdag ng iba pang seksyon.)`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

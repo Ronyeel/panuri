@@ -15,17 +15,17 @@ const NAV_ITEMS = [
   },
   {
     path: '/admin/books',
-    label: 'Books',
+    label: 'Mga Aklat',
     icon: <MdMenuBook size={20} />,
   },
   {
     path: '/admin/quiz',
-    label: 'Quiz',
+    label: 'Pagsusulit',
     icon: <MdQuiz size={20} />,
   },
   {
     path: '/admin/quiz/grading',
-    label: 'Grading',
+    label: 'Pagmamarka',
     icon: <MdGrading size={20} />,
   },
   {
@@ -74,7 +74,7 @@ export default function AdminLayout() {
 
         <div className="ep-sidebar-header">
           <div className="ep-logo">
-            <img src="/mascot.png" alt="Panuri Logo" style={{ width: 52, height: 52, objectFit: 'contain' }} />
+            <img src="/mascot.png" alt="Panuri Logo" style={{ width: 64, height: 64, objectFit: 'contain' }} />
             <span className="ep-logo-text">Panisuri</span>
           </div>
           <button

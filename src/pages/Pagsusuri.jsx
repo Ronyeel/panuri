@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './Pagsusuri.css';
 import LAYUNIN from '../data/layunin.json';
+import HAKBANG from '../data/hakbang.json';
 
 const LEVELS = [
   {
@@ -64,6 +65,33 @@ export default function Pagsusuri() {
   const [activeStep, setActiveStep] = useState(null);
 
   const [showDesc, setShowDesc] = useState(false);
+
+  // For scroll animation of timeline steps
+  const [visibleSteps, setVisibleSteps] = useState([]);
+  const observerRef = useRef(null);
+
+  useEffect(() => {
+    observerRef.current = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const stepNum = parseInt(entry.target.dataset.step, 10);
+        if (entry.isIntersecting) {
+          setVisibleSteps((prev) => {
+            if (!prev.includes(stepNum)) return [...prev, stepNum];
+            return prev;
+          });
+        } else {
+          setVisibleSteps((prev) => prev.filter((num) => num !== stepNum));
+        }
+      });
+    }, { threshold: 0.3, rootMargin: '0px 0px -100px 0px' });
+
+    const items = document.querySelectorAll('.hakbang-item');
+    items.forEach((item) => observerRef.current.observe(item));
+
+    return () => {
+      if (observerRef.current) observerRef.current.disconnect();
+    };
+  }, []);
 
   const handleStepClick = (number) => {
     setActiveStep(prev => prev === number ? null : number);
@@ -166,7 +194,7 @@ export default function Pagsusuri() {
       </main>
 
       {/* ── Layunin ng Pagsusuri ── */}
-      <footer className="layunin-section">
+      <section className="layunin-section">
         <div className="layunin-inner">
 
           {/* Title tag — same as TSA section tag */}
@@ -219,7 +247,43 @@ export default function Pagsusuri() {
           </p>
 
         </div>
-      </footer>
+      </section>
+
+      {/* ── Hakbang Timeline ── */}
+      <section className="hakbang-section" aria-label="Mga Hakbang sa Pagsusuri">
+        <div className="hakbang-inner">
+          <h2 className="hakbang-title">
+            Mga Hakbang sa Mabuting Pagsusuri<br />
+            <span className="hakbang-title-sub">ng Akdang Pampanitikan</span>
+          </h2>
+
+          <div className="hakbang-timeline">
+
+            {HAKBANG.map((step, i) => {
+              const isVisible = visibleSteps.includes(step.number);
+              return (
+                <div
+                  key={step.number}
+                  data-step={step.number}
+                  className={`hakbang-item hakbang-item--${i % 2 === 0 ? 'left' : 'right'} ${isVisible ? 'is-visible' : ''}`}
+                >
+                  {/* Dot on the spine */}
+                  <div className="hakbang-dot" aria-hidden="true" />
+
+                  {/* Card */}
+                  <div className="hakbang-card">
+                    <div className="hakbang-card-header">
+                      <span className="hakbang-card-number">{step.number}</span>
+                      <h3 className="hakbang-card-title">{step.title}</h3>
+                    </div>
+                    <p className="hakbang-card-text">{step.content}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
 
     </div>
   );

@@ -26,6 +26,59 @@ const CONCURRENCY = 6     // ← more parallel renders since Supabase CDN is fas
 // Cache rendered pages so revisiting same book is instant
 const pageCache = new Map()
 
+const preloadQueue = []
+let isPreloading = false
+
+export async function preloadPdfs(pdfUrls) {
+  for (const url of pdfUrls) {
+    if (url && !preloadQueue.includes(url) && !pageCache.has(`${url}::1`)) {
+      preloadQueue.push(url)
+    }
+  }
+
+  if (isPreloading || preloadQueue.length === 0) return
+  isPreloading = true
+
+  try {
+    const lib = await getPdfJs()
+    while (preloadQueue.length > 0) {
+      // Small delay between books to keep UI snappy
+      await new Promise(r => setTimeout(r, 1000))
+      
+      const url = preloadQueue.shift()
+      if (pageCache.has(`${url}::1`)) continue
+
+      try {
+        const pdf = await lib.getDocument({
+          url,
+          disableRange: false, disableStream: false, disableAutoFetch: false,
+          cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/', cMapPacked: true,
+        }).promise
+        
+        // Render first 2 pages in background
+        const count = Math.min(2, pdf.numPages)
+        for (let i = 1; i <= count; i++) {
+          if (pageCache.has(`${url}::${i}`)) continue
+          const page = await pdf.getPage(i)
+          const viewport = page.getViewport({ scale: SCALE })
+          const canvas = document.createElement('canvas')
+          canvas.width = viewport.width
+          canvas.height = viewport.height
+          await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
+          pageCache.set(`${url}::${i}`, canvas.toDataURL('image/jpeg', JPEG_Q))
+          page.cleanup?.()
+          
+          // Yield back to main thread heavily
+          await new Promise(r => setTimeout(r, 500))
+        }
+      } catch (e) {
+        // ignore background errors
+      }
+    }
+  } catch (e) {}
+  isPreloading = false
+}
+
 export default function FlipBook({ pdfUrl, onClose, title }) {
   const [pages, setPages]             = useState([])
   const [totalPages, setTotal]        = useState(0)
@@ -35,8 +88,16 @@ export default function FlipBook({ pdfUrl, onClose, title }) {
   const [status, setStatus]           = useState('idle')
   const [loadedCount, setLoadedCount] = useState(0)
   const [mounted, setMounted]         = useState(false)
+  const [isMobile, setIsMobile]       = useState(window.innerWidth <= 580)
   const pdfRef    = useRef(null)
   const cancelRef = useRef(false)
+  const touchStartX = useRef(0)
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 580)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 40)
@@ -151,13 +212,16 @@ export default function FlipBook({ pdfUrl, onClose, title }) {
 
   // ── Spread logic ──────────────────────────────────────────────────────────
   const getSpreadPages = (s) => {
+    if (isMobile) {
+      return [null, s] // On mobile, we only use the right page slot for the single page
+    }
     if (s === 0) return [null, 0]
     const left  = s * 2 - 1
     const right = s * 2
     return [left, right < totalPages ? right : null]
   }
 
-  const maxSpread = Math.max(0, Math.ceil((totalPages - 1) / 2))
+  const maxSpread = isMobile ? Math.max(0, totalPages - 1) : Math.max(0, Math.ceil((totalPages - 1) / 2))
 
   const goNext = useCallback(() => {
     if (flipping || spread >= maxSpread) return
@@ -194,7 +258,19 @@ export default function FlipBook({ pdfUrl, onClose, title }) {
 
   const [leftIdx, rightIdx] = getSpreadPages(spread)
   const [nextLeftIdx]       = spread < maxSpread ? getSpreadPages(spread + 1) : [null]
-  const pageNum = spread === 0 ? 1 : spread * 2
+  const pageNum = isMobile ? spread + 1 : (spread === 0 ? 1 : spread * 2)
+
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX
+  }
+  const handleTouchEnd = (e) => {
+    const touchEndX = e.changedTouches[0].clientX
+    const diff = touchStartX.current - touchEndX
+    if (Math.abs(diff) > 40) {
+      if (diff > 0) goNext()
+      else goPrev()
+    }
+  }
 
   const renderNoPdf = () => (
     <div className="fb-error-state">
@@ -238,7 +314,7 @@ export default function FlipBook({ pdfUrl, onClose, title }) {
       )}
 
       {status === 'error' ? renderNoPdf() : (
-        <main className="fb-stage">
+        <main className="fb-stage" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
           <div className={`fb-book ${flipping ? `fb-book--${flipDir}` : ''}`}>
 
             <div className="fb-page fb-page--left" onClick={goPrev}>

@@ -4,15 +4,38 @@ import { supabase } from '../API/supabase'
 import { MdAdd, MdSearch, MdArticle, MdPictureAsPdf, MdImage, MdMoreVert } from 'react-icons/md'
 import { useUI } from '../context/UIContext'
 
+const COVER_BUCKET = 'covers'
+const PDF_BUCKET   = 'pdfs'
+
+const SUPABASE_PDF_LIMIT_BYTES = 50 * 1024 * 1024 // 50 MB
+
+async function uploadToStorage(bucket, file, pathPrefix = '') {
+  const ext  = file.name.split('.').pop()
+  const path = `${pathPrefix}${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+
+  const { error } = await supabase.storage.from(bucket).upload(path, file, {
+    cacheControl: '3600',
+    upsert: false,
+  })
+  if (error) throw error
+
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path)
+  return data.publicUrl
+}
+
+
 const EMPTY_FORM = {
   bookTitle: '',
   author:    '',
   cover:     '',
+  coverFile: null,
   tag:       '',
   year:      '',
   excerpt:   '',
   pdf:       '',
+  pdfFile:   null,
 }
+
 
 export default function AdminExcerpts() {
   const { notify, confirm } = useUI()
@@ -23,9 +46,12 @@ export default function AdminExcerpts() {
   const [editing, setEditing] = useState(null)
   const [modal,   setModal]   = useState(false)
   const [saving,  setSaving]  = useState(false)
+  const [saveMsg, setSaveMsg] = useState('')
   const [error,   setError]   = useState('')
   const [activeMenuId, setActiveMenuId] = useState(null)
   const titleRef = useRef(null)
+  const coverInput = useRef(null)
+  const pdfInput   = useRef(null)
 
   /* fetch */
   const fetchItems = async () => {
@@ -49,7 +75,7 @@ export default function AdminExcerpts() {
 
   /* modal helpers */
   const openAdd = () => {
-    setForm(EMPTY_FORM); setEditing(null); setError(''); setModal(true)
+    setForm(EMPTY_FORM); setEditing(null); setError(''); setSaveMsg(''); setModal(true)
     setTimeout(() => titleRef.current?.focus(), 50)
   }
 
@@ -58,16 +84,34 @@ export default function AdminExcerpts() {
       bookTitle: item.bookTitle ?? '',
       author:    item.author    ?? '',
       cover:     item.cover     ?? '',
+      coverFile: null,
       tag:       item.tag       ?? '',
       year:      item.year      ?? '',
       excerpt:   item.excerpt   ?? '',
       pdf:       item.pdf       ?? '',
+      pdfFile:   null,
     })
-    setEditing(item.id); setError(''); setModal(true)
+    setEditing(item.id); setError(''); setSaveMsg(''); setModal(true)
     setTimeout(() => titleRef.current?.focus(), 50)
   }
 
-  const closeModal = () => { setModal(false); setEditing(null); setError('') }
+  const closeModal = () => {
+    setModal(false); setEditing(null); setError(''); setSaveMsg('')
+    if (coverInput.current) coverInput.current.value = ''
+    if (pdfInput.current)   pdfInput.current.value   = ''
+  }
+
+  const handleCoverFile = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setForm(f => ({ ...f, coverFile: file, cover: '' }))
+  }
+
+  const handlePdfFile = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setForm(f => ({ ...f, pdfFile: file, pdf: '' }))
+  }
 
   const validate = () => {
     if (!form.bookTitle.trim()) return 'Kailangan ang pamagat ng libro.'
@@ -80,30 +124,51 @@ export default function AdminExcerpts() {
   const handleSave = async () => {
     const err = validate()
     if (err) { setError(err); return }
-    setSaving(true); setError('')
-    const trim = (v) => (v && String(v).trim()) || null
-    const payload = {
-      bookTitle: form.bookTitle.trim(),
-      author:    trim(form.author),
-      cover:     trim(form.cover),
-      tag:       trim(form.tag),
-      year:      form.year ? parseInt(form.year, 10) : null,
-      excerpt:   trim(form.excerpt),
-      pdf:       trim(form.pdf),
-    }
+    setSaving(true); setError(''); setSaveMsg('')
+
     try {
+      let coverUrl = form.cover
+      let pdfUrl   = form.pdf
+
+      if (form.coverFile) {
+        setSaveMsg('Ina-upload ang cover…')
+        coverUrl = await uploadToStorage(COVER_BUCKET, form.coverFile, 'covers/')
+      }
+
+      if (form.pdfFile) {
+        setSaveMsg('Ina-upload ang PDF…')
+        pdfUrl = await uploadToStorage(PDF_BUCKET, form.pdfFile, 'pdfs/')
+      }
+
+      setSaveMsg('Sine-save…')
+
+      const trim = (v) => (v && String(v).trim()) || '' // return empty string instead of null
+      const payload = {
+        bookTitle: form.bookTitle.trim(),
+        author:    trim(form.author),
+        cover:     coverUrl || '',
+        tag:       trim(form.tag),
+        year:      form.year ? parseInt(form.year, 10) : null,
+        excerpt:   trim(form.excerpt),
+        pdf:       pdfUrl || '',
+      }
+
       if (editing) {
         const { error } = await supabase.from('excerpts').update(payload).eq('id', editing)
         if (error) throw error
+        notify('Matagumpay na na-update ang sipi.', 'success')
       } else {
         const { error } = await supabase.from('excerpts').insert([payload])
         if (error) throw error
+        notify('Matagumpay na naidagdag ang sipi.', 'success')
       }
-      await fetchItems(); closeModal()
+      await fetchItems()
+      closeModal()
     } catch (e) {
       console.error(e); setError('Hindi ma-save. Subukan ulit.')
     } finally {
       setSaving(false)
+      setSaveMsg('')
     }
   }
 
@@ -201,7 +266,7 @@ export default function AdminExcerpts() {
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         {item.cover
-                          ? <img src={item.cover} alt=""
+                          ? <img src={item.cover.startsWith('/') ? item.cover : item.cover.startsWith('http') ? item.cover : `/${item.cover}`} alt=""
                               style={{ width: 30, height: 42, objectFit: 'cover', borderRadius: 4,
                                 border: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }} />
                           : <div style={{ width: 30, height: 42, background: 'var(--bg-3)', borderRadius: 4,
@@ -287,6 +352,12 @@ export default function AdminExcerpts() {
             </div>
             <div className="ep-modal-body">
               {error && <p className="ep-form-error">{error}</p>}
+              {saveMsg && (
+                <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span className="ep-spinner" style={{ width: 12, height: 12 }} />
+                  {saveMsg}
+                </p>
+              )}
               <div className="ep-form-grid">
 
                 <div className="ep-form-group ep-form-group--full">
@@ -317,18 +388,136 @@ export default function AdminExcerpts() {
                     onChange={e => setForm(f => ({ ...f, year: e.target.value }))} />
                 </div>
 
-                <div className="ep-form-group">
-                  <label>Cover URL</label>
-                  <input value={form.cover} className="ep-input"
-                    placeholder="https://…"
-                    onChange={e => setForm(f => ({ ...f, cover: e.target.value }))} />
+                <div className="ep-form-group ep-form-group--full">
+                  <label>Cover Image (Mag-upload O Mag-paste ng URL)</label>
+                  
+                  {/* Preview */}
+                  {(form.coverFile || form.cover) && (
+                    <div style={{ marginBottom: 8 }}>
+                      {form.coverFile && form.coverFile.size > 5 * 1024 * 1024 ? (
+                        <p style={{ fontSize: 12, color: 'var(--text-3)' }}>Ang larawan ay masyadong malaki para i-preview, ngunit mai-upload ito nang maayos.</p>
+                      ) : (
+                        <img
+                          src={form.coverFile ? URL.createObjectURL(form.coverFile) : form.cover}
+                          alt="cover preview"
+                          style={{ maxHeight: 150, maxWidth: '100%', borderRadius: 6, objectFit: 'cover',
+                            border: '1px solid var(--border)', backgroundColor: 'var(--bg-1)' }}
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {/* File picker button */}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="ep-btn ep-btn--ghost"
+                      style={{ fontSize: 12, padding: '5px 12px' }}
+                      onClick={() => coverInput.current?.click()}
+                    >
+                      📁 Pumili ng larawan
+                    </button>
+                    {form.coverFile && (
+                      <span style={{ fontSize: 12, color: 'var(--text-2)' }}>
+                        {form.coverFile.name}
+                      </span>
+                    )}
+                    <input
+                      ref={coverInput}
+                      type="file"
+                      accept="image/*"
+                      style={{ display: 'none' }}
+                      onChange={handleCoverFile}
+                    />
+                  </div>
+
+                  <input
+                    value={form.coverFile ? '' : form.cover}
+                    className="ep-input"
+                    style={{ marginTop: 8 }}
+                    placeholder="…o i-paste ang image URL"
+                    disabled={!!form.coverFile}
+                    onChange={e => setForm(f => ({ ...f, cover: e.target.value, coverFile: null }))}
+                  />
+                  {form.coverFile && (
+                    <button
+                      type="button"
+                      style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4,
+                        background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                      onClick={() => {
+                        setForm(f => ({ ...f, coverFile: null }))
+                        if (coverInput.current) coverInput.current.value = ''
+                      }}
+                    >
+                      ✕ Alisin ang file
+                    </button>
+                  )}
+                  {(form.cover || form.coverFile) && (
+                    <button
+                      type="button"
+                      style={{ fontSize: 11, color: '#ff5f6d', marginTop: 4, marginLeft: form.coverFile ? 8 : 0,
+                        background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                      onClick={() => {
+                        setForm(f => ({ ...f, cover: '', coverFile: null }))
+                        if (coverInput.current) coverInput.current.value = ''
+                      }}
+                    >
+                      🗑 Alisin ang cover
+                    </button>
+                  )}
                 </div>
 
                 <div className="ep-form-group ep-form-group--full">
-                  <label>PDF URL</label>
-                  <input value={form.pdf} className="ep-input"
-                    placeholder="https://…"
-                    onChange={e => setForm(f => ({ ...f, pdf: e.target.value }))} />
+                  <label>PDF (Mag-upload O Mag-paste ng URL)</label>
+                  
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="ep-btn ep-btn--ghost"
+                      style={{ fontSize: 12, padding: '5px 12px' }}
+                      onClick={() => pdfInput.current?.click()}
+                    >
+                      📄 Pumili ng PDF
+                    </button>
+                    {form.pdfFile && (
+                      <span style={{ fontSize: 12, color: 'var(--text-2)' }}>
+                        {form.pdfFile.name}
+                        {' '}
+                        <span style={{ color: 'var(--text-3)', fontSize: 11 }}>
+                          ({(form.pdfFile.size / 1024 / 1024).toFixed(1)} MB)
+                        </span>
+                      </span>
+                    )}
+                    <input
+                      ref={pdfInput}
+                      type="file"
+                      accept="application/pdf"
+                      style={{ display: 'none' }}
+                      onChange={handlePdfFile}
+                    />
+                  </div>
+
+                  <input
+                    value={form.pdfFile ? '' : form.pdf}
+                    className="ep-input"
+                    style={{ marginTop: 8 }}
+                    placeholder="…o i-paste ang PDF URL"
+                    disabled={!!form.pdfFile}
+                    onChange={e => setForm(f => ({ ...f, pdf: e.target.value, pdfFile: null }))}
+                  />
+                  {form.pdfFile && (
+                    <button
+                      type="button"
+                      style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4,
+                        background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                      onClick={() => {
+                        setForm(f => ({ ...f, pdfFile: null }))
+                        if (pdfInput.current) pdfInput.current.value = ''
+                      }}
+                    >
+                      ✕ Alisin ang file
+                    </button>
+                  )}
                 </div>
 
                 <div className="ep-form-group ep-form-group--full">

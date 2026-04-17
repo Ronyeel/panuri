@@ -447,8 +447,7 @@ export default function AdminQuizSets() {
       {/* Header */}
       <div className="qz-page-header">
         <div>
-          <p className="qz-eyebrow">Palaisipan · Pamamahala</p>
-          <h1 className="qz-page-title">Mga Set ng Quiz</h1>
+          <h1 className="qz-page-title">PAGSUSULIT</h1>
         </div>
         <button className="qz-btn qz-btn--primary" onClick={openAddSet}>
           <PlusIcon /> Bagong Set

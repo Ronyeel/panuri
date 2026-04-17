@@ -7,22 +7,22 @@ import { useUI } from '../context/UIContext'
 // ─────────────────────────────────────────────
 // Supabase storage bucket names — adjust if yours differ
 const COVER_BUCKET = 'covers'
-const PDF_BUCKET   = 'pdfs'
+const PDF_BUCKET = 'pdfs'
 
 // Supabase free-tier DB row limit for binary/text fields.
 // PDFs larger than this go to books.json instead.
 const SUPABASE_PDF_LIMIT_BYTES = 50 * 1024 * 1024 // 50 MB
 
 const EMPTY_FORM = {
-  title:      '',
-  author:     '',
-  genre:      '',
-  cover:      '',       // final URL (after upload or manual entry)
-  coverFile:  null,     // File object from <input type="file">
-  quote:      '',
-  year:       '',
-  pdf:        '',       // final URL
-  pdfFile:    null,     // File object
+  title: '',
+  author: '',
+  genre: '',
+  cover: '',       // final URL (after upload or manual entry)
+  coverFile: null,     // File object from <input type="file">
+  quote: '',
+  year: '',
+  pdf: '',       // final URL
+  pdfFile: null,     // File object
   is_excerpt: false,
 }
 
@@ -31,7 +31,7 @@ const EMPTY_FORM = {
 
 /** Upload a file to a Supabase Storage bucket, return its public URL. */
 async function uploadToStorage(bucket, file, pathPrefix = '') {
-  const ext  = file.name.split('.').pop()
+  const ext = file.name.split('.').pop()
   const path = `${pathPrefix}${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
 
   const { error } = await supabase.storage.from(bucket).upload(path, file, {
@@ -71,19 +71,19 @@ async function appendToLocalJson(entry) {
 
 export default function AdminBooks() {
   const { notify, confirm } = useUI()
-  const [books,   setBooks]   = useState([])
+  const [books, setBooks] = useState([])
   const [loading, setLoading] = useState(true)
-  const [search,  setSearch]  = useState('')
-  const [form,    setForm]    = useState(EMPTY_FORM)
+  const [search, setSearch] = useState('')
+  const [form, setForm] = useState(EMPTY_FORM)
   const [editing, setEditing] = useState(null)
-  const [modal,   setModal]   = useState(false)
-  const [saving,  setSaving]  = useState(false)
+  const [modal, setModal] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')   // progress message during upload
-  const [error,   setError]   = useState('')
+  const [error, setError] = useState('')
   const [activeMenuId, setActiveMenuId] = useState(null)
-  const titleRef   = useRef(null)
+  const titleRef = useRef(null)
   const coverInput = useRef(null)
-  const pdfInput   = useRef(null)
+  const pdfInput = useRef(null)
 
   // ── fetch ──────────────────────────────────
   const fetchBooks = async () => {
@@ -111,15 +111,15 @@ export default function AdminBooks() {
 
   const openEdit = (book) => {
     setForm({
-      title:      book.title      ?? '',
-      author:     book.author     ?? '',
-      genre:      book.genre      ?? '',
-      cover:      book.cover      ?? '',
-      coverFile:  null,
-      quote:      book.quote      ?? '',
-      year:       book.year       ?? '',
-      pdf:        book.pdf        ?? '',
-      pdfFile:    null,
+      title: book.title ?? '',
+      author: book.author ?? '',
+      genre: book.genre ?? '',
+      cover: book.cover ?? '',
+      coverFile: null,
+      quote: book.quote ?? '',
+      year: book.year ?? '',
+      pdf: book.pdf ?? '',
+      pdfFile: null,
       is_excerpt: book.is_excerpt ?? false,
     })
     setEditing(book.id); setError(''); setSaveMsg(''); setModal(true)
@@ -130,7 +130,7 @@ export default function AdminBooks() {
     setModal(false); setEditing(null); setError(''); setSaveMsg('')
     // reset file inputs
     if (coverInput.current) coverInput.current.value = ''
-    if (pdfInput.current)   pdfInput.current.value   = ''
+    if (pdfInput.current) pdfInput.current.value = ''
   }
 
   // ── file pickers ───────────────────────────
@@ -148,8 +148,7 @@ export default function AdminBooks() {
 
   // ── validation ─────────────────────────────
   const validate = () => {
-    if (!form.title.trim())  return 'Kailangan ang pamagat.'
-    if (!form.author.trim()) return 'Kailangan ang pangalan ng may-akda.'
+    if (!form.title.trim()) return 'Kailangan ang pamagat.'
     if (form.year && !/^\d{4}$/.test(String(form.year).trim()))
       return 'Ang taon ay dapat 4 na digit (hal. 2024).'
     return ''
@@ -164,7 +163,7 @@ export default function AdminBooks() {
 
     try {
       let coverUrl = form.cover
-      let pdfUrl   = form.pdf
+      let pdfUrl = form.pdf
       let pdfInJson = false
 
       // 1. Upload cover image if a file was chosen
@@ -190,15 +189,15 @@ export default function AdminBooks() {
 
       setSaveMsg('Sine-save…')
 
-      const trim = (v) => (v && String(v).trim()) || null
+      const trim = (v) => (v && String(v).trim()) || '' // '' for NOT NULL string columns
       const payload = {
-        title:      form.title.trim(),
-        author:     form.author.trim(),
-        genre:      trim(form.genre),
-        cover:      coverUrl  || null,
-        quote:      trim(form.quote),
-        year:       form.year ? parseInt(form.year, 10) : null,
-        pdf:        pdfInJson ? null : (pdfUrl || null),   // omit from DB if going to JSON
+        title: form.title.trim(),
+        author: trim(form.author),
+        genre: trim(form.genre),
+        cover: coverUrl || '',
+        quote: trim(form.quote),
+        year: form.year ? parseInt(form.year, 10) : 0, // 0 = unknown (NOT NULL constraint)
+        pdf: pdfInJson ? '' : (pdfUrl || ''),
         is_excerpt: form.is_excerpt,
       }
 
@@ -210,6 +209,7 @@ export default function AdminBooks() {
         if (pdfInJson) {
           await appendToLocalJson({ id: editing, pdf: pdfUrl, ...payload })
         }
+        notify('Matagumpay na na-update ang libro.', 'success')
       } else {
         const newId = crypto.randomUUID()
         const { error } = await supabase.from('books').insert([{ id: newId, ...payload }])
@@ -218,6 +218,7 @@ export default function AdminBooks() {
         if (pdfInJson) {
           await appendToLocalJson({ id: newId, pdf: pdfUrl, ...payload })
         }
+        notify('Matagumpay na naidagdag ang libro.', 'success')
       }
 
       await fetchBooks()
@@ -235,10 +236,10 @@ export default function AdminBooks() {
   // ── delete ─────────────────────────────────
   const handleDelete = async (id, title) => {
     const ok = await confirm({
-      title:        `Tanggalin ang "${title}"?`,
-      body:         'Permanente itong matatanggal. Hindi ito maibabalik.',
+      title: `Tanggalin ang "${title}"?`,
+      body: 'Permanente itong matatanggal. Hindi ito maibabalik.',
       confirmLabel: 'Tanggalin',
-      danger:       true,
+      danger: true,
     })
     if (!ok) return
     const { error } = await supabase.from('books').delete().eq('id', id)
@@ -252,7 +253,7 @@ export default function AdminBooks() {
 
   // ── filter ─────────────────────────────────
   const filtered = books.filter(b =>
-    b.title?.toLowerCase().includes(search.toLowerCase())  ||
+    b.title?.toLowerCase().includes(search.toLowerCase()) ||
     b.author?.toLowerCase().includes(search.toLowerCase()) ||
     b.genre?.toLowerCase().includes(search.toLowerCase())
   )
@@ -276,8 +277,8 @@ export default function AdminBooks() {
       {/* Stats */}
       <div className="ep-stats-grid">
         {[
-          { label: 'Kabuuan', val: books.length,                           icon: <MdLibraryBooks />, accent: '#6c63ff' },
-          { label: 'May PDF', val: books.filter(b => b.pdf).length,        icon: <MdPictureAsPdf />, accent: '#22d3a5' },
+          { label: 'Kabuuan', val: books.length, icon: <MdLibraryBooks />, accent: '#6c63ff' },
+          { label: 'May PDF', val: books.filter(b => b.pdf).length, icon: <MdPictureAsPdf />, accent: '#22d3a5' },
           { label: 'Excerpt', val: books.filter(b => b.is_excerpt).length, icon: <MdOutlineDescription />, accent: '#f5b942' },
         ].map(s => (
           <div className="ep-stat-card" key={s.label} style={{ '--accent': s.accent }}>
@@ -326,21 +327,29 @@ export default function AdminBooks() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         {b.cover
                           ? <img src={b.cover} alt=""
-                              style={{ width: 30, height: 42, objectFit: 'contain', borderRadius: 4,
-                                border: '1px solid rgba(255,255,255,0.07)', flexShrink: 0, backgroundColor: 'var(--bg-3)' }} />
-                          : <div style={{ width: 30, height: 42, background: 'var(--bg-3)', borderRadius: 4,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              fontSize: 14, border: '1px solid var(--border)', flexShrink: 0 }}>📖</div>
+                            style={{
+                              width: 30, height: 42, objectFit: 'contain', borderRadius: 4,
+                              border: '1px solid rgba(255,255,255,0.07)', flexShrink: 0, backgroundColor: 'var(--bg-3)'
+                            }} />
+                          : <div style={{
+                            width: 30, height: 42, background: 'var(--bg-3)', borderRadius: 4,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 14, border: '1px solid var(--border)', flexShrink: 0
+                          }}>📖</div>
                         }
                         <div style={{ overflow: 'hidden' }}>
-                          <span style={{ fontWeight: 500, color: 'var(--text-1)', display: 'block',
-                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 200 }}>
+                          <span style={{
+                            fontWeight: 500, color: 'var(--text-1)', display: 'block',
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 200
+                          }}>
                             {b.title}
                           </span>
                           {b.quote && (
-                            <span style={{ color: 'var(--text-3)', fontSize: 11.5, fontStyle: 'italic',
+                            <span style={{
+                              color: 'var(--text-3)', fontSize: 11.5, fontStyle: 'italic',
                               display: 'block', maxWidth: 200, overflow: 'hidden',
-                              textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                            }}>
                               "{b.quote}"
                             </span>
                           )}
@@ -348,13 +357,13 @@ export default function AdminBooks() {
                       </div>
                     </td>
                     <td style={{ color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{b.author || '—'}</td>
-                    <td style={{ color: 'var(--text-2)' }}>{b.genre  || '—'}</td>
-                    <td style={{ color: 'var(--text-2)' }}>{b.year   || '—'}</td>
+                    <td style={{ color: 'var(--text-2)' }}>{b.genre || '—'}</td>
+                    <td style={{ color: 'var(--text-2)' }}>{b.year || '—'}</td>
                     <td>
                       {b.pdf
                         ? <a href={b.pdf} target="_blank" rel="noopener noreferrer">
-                            <span className="ep-pill ep-pill--admin">May PDF</span>
-                          </a>
+                          <span className="ep-pill ep-pill--admin">May PDF</span>
+                        </a>
                         : <span style={{ color: 'var(--text-3)' }}>—</span>
                       }
                     </td>
@@ -407,7 +416,7 @@ export default function AdminBooks() {
             </div>
 
             <div className="ep-modal-body">
-              {error   && <p className="ep-form-error">{error}</p>}
+              {error && <p className="ep-form-error">{error}</p>}
               {saveMsg && (
                 <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span className="ep-spinner" style={{ width: 12, height: 12 }} />
@@ -427,7 +436,7 @@ export default function AdminBooks() {
 
                 {/* May-akda */}
                 <div className="ep-form-group">
-                  <label>May-akda *</label>
+                  <label>May-akda</label>
                   <input value={form.author} className="ep-input"
                     placeholder="Pangalan ng may-akda"
                     onChange={e => setForm(f => ({ ...f, author: e.target.value }))} />
@@ -461,17 +470,23 @@ export default function AdminBooks() {
 
                 {/* ── Cover upload ── */}
                 <div className="ep-form-group ep-form-group--full">
-                  <label>Cover Image</label>
+                  <label>Cover Image (Mag-upload O Mag-paste ng URL)</label>
 
                   {/* Preview */}
                   {(form.coverFile || form.cover) && (
                     <div style={{ marginBottom: 8 }}>
-                      <img
-                        src={form.coverFile ? URL.createObjectURL(form.coverFile) : form.cover}
-                        alt="cover preview"
-                        style={{ maxHeight: 150, maxWidth: '100%', borderRadius: 6, objectFit: 'contain',
-                          border: '1px solid var(--border)', backgroundColor: 'var(--bg-3)' }}
-                      />
+                      {form.coverFile && form.coverFile.size > 5 * 1024 * 1024 ? (
+                        <p style={{ fontSize: 12, color: 'var(--text-3)' }}>Ang larawan ay masyadong malaki para i-preview, ngunit mai-upload ito nang maayos.</p>
+                      ) : (
+                        <img
+                          src={form.coverFile ? URL.createObjectURL(form.coverFile) : (form.cover || undefined)}
+                          alt="cover preview"
+                          style={{
+                            maxHeight: 150, maxWidth: '100%', borderRadius: 6, objectFit: 'contain',
+                            border: '1px solid var(--border)', backgroundColor: 'var(--bg-1)'
+                          }}
+                        />
+                      )}
                     </div>
                   )}
 
@@ -501,7 +516,7 @@ export default function AdminBooks() {
 
                   {/* Manual URL fallback */}
                   <input
-                    value={form.coverFile ? '' : form.cover}
+                    value={form.coverFile ? '' : (form.cover || '')}
                     className="ep-input"
                     style={{ marginTop: 8 }}
                     placeholder="…o i-paste ang image URL"
@@ -511,8 +526,10 @@ export default function AdminBooks() {
                   {form.coverFile && (
                     <button
                       type="button"
-                      style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4,
-                        background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                      style={{
+                        fontSize: 11, color: 'var(--text-3)', marginTop: 4,
+                        background: 'none', border: 'none', cursor: 'pointer', padding: 0
+                      }}
                       onClick={() => {
                         setForm(f => ({ ...f, coverFile: null }))
                         if (coverInput.current) coverInput.current.value = ''
@@ -521,12 +538,27 @@ export default function AdminBooks() {
                       ✕ Alisin ang file
                     </button>
                   )}
+                  {(form.cover || form.coverFile) && (
+                    <button
+                      type="button"
+                      style={{
+                        fontSize: 11, color: '#ff5f6d', marginTop: 4, marginLeft: form.coverFile ? 8 : 0,
+                        background: 'none', border: 'none', cursor: 'pointer', padding: 0
+                      }}
+                      onClick={() => {
+                        setForm(f => ({ ...f, cover: '', coverFile: null }))
+                        if (coverInput.current) coverInput.current.value = ''
+                      }}
+                    >
+                      🗑 Alisin ang cover
+                    </button>
+                  )}
                 </div>
 
                 {/* ── PDF upload ── */}
                 <div className="ep-form-group ep-form-group--full">
                   <label>
-                    PDF
+                    PDF (Mag-upload O Mag-paste ng URL)
                     <span style={{ fontSize: 11, color: 'var(--text-3)', marginLeft: 6, fontWeight: 400 }}>
                       (higit sa 50 MB → awtomatikong mapupunta sa books.json)
                     </span>
@@ -565,7 +597,7 @@ export default function AdminBooks() {
 
                   {/* Manual URL fallback */}
                   <input
-                    value={form.pdfFile ? '' : form.pdf}
+                    value={form.pdfFile ? '' : (form.pdf || '')}
                     className="ep-input"
                     style={{ marginTop: 8 }}
                     placeholder="…o i-paste ang PDF URL"
@@ -575,8 +607,10 @@ export default function AdminBooks() {
                   {form.pdfFile && (
                     <button
                       type="button"
-                      style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4,
-                        background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                      style={{
+                        fontSize: 11, color: 'var(--text-3)', marginTop: 4,
+                        background: 'none', border: 'none', cursor: 'pointer', padding: 0
+                      }}
                       onClick={() => {
                         setForm(f => ({ ...f, pdfFile: null }))
                         if (pdfInput.current) pdfInput.current.value = ''

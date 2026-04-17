@@ -14,18 +14,10 @@
   border-radius: 20px;
   padding: 16px 20px;
   width: 280px;
-  box-shadow: 0 15px 35px rgba(0,0,0,0.4);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
   z-index: 20;
   animation: fadein 0.5s ease both;
   animation-delay: 0.3s;
-}
-
-@media (max-width: 768px) {
-  .mascot-speech-bubble {
-    width: clamp(220px, 80vw, 280px);
-    left: 50%;
-    bottom: calc(100% - 10px);
-  }
 }
 
 .mascot-speech-bubble::before {
@@ -40,15 +32,51 @@
   border-color: #ffffff transparent transparent transparent;
 }
 
+@media (max-width: 768px) {
+  .mascot-bubble-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+  }
+  .auth-hero-mascot {
+    position: relative;
+    z-index: 25; /* higher than bubble */
+  }
+  .mascot-speech-bubble {
+    position: relative;
+    width: auto;
+    flex: 1;
+    max-width: 280px;
+    left: auto;
+    bottom: auto;
+    transform: none;
+    padding: 14px 18px;
+    margin-left: -20px; /* Pull bubble significantly left to close transparent gap in PNG */
+    z-index: 20;
+  }
+  .mascot-speech-bubble::before {
+    top: 50%;
+    left: auto;
+    right: 100%;
+    bottom: auto;
+    transform: translateY(-50%);
+    border-width: 10px 14px 10px 0;
+    border-color: transparent #ffffff transparent transparent;
+  }
+}
+
 .mascot-bubble-name {
   font-family: var(--font-primary, 'Crimson Text', serif);
   font-size: 0.95rem;
   font-weight: 800;
-  color: #f5c518; /* Vibrant Yellow/Gold */
+  color: #f5c518;
+  /* Vibrant Yellow/Gold */
   margin: 0 0 4px 0;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  text-shadow: 0 1px 1px rgba(0,0,0,0.1); /* Slight shadow to ensure readability on white */
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+  /* Slight shadow to ensure readability on white */
 }
 
 .mascot-bubble-text {
@@ -68,11 +96,25 @@
 .mascot-typing span {
   animation: blink 1.4s infinite both;
 }
-.mascot-typing span:nth-child(2) { animation-delay: 0.2s; }
-.mascot-typing span:nth-child(3) { animation-delay: 0.4s; }
+
+.mascot-typing span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.mascot-typing span:nth-child(3) {
+  animation-delay: 0.4s;
+}
 
 @keyframes blink {
-  0% { opacity: 0.2; }
-  20% { opacity: 1; }
-  100% { opacity: 0.2; }
+  0% {
+    opacity: 0.2;
+  }
+
+  20% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.2;
+  }
 }

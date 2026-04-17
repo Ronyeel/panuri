@@ -48,10 +48,12 @@
 .navbar-logo:hover { opacity: 0.85; }
 
 .navbar-logo-img {
-  height: 64px;
+  height: calc(var(--navbar-h) - 12px);
+  max-height: 56px;
   width: auto;
   object-fit: contain;
   display: block;
+  vertical-align: middle;
 }
 
 .navbar-logo-text {
@@ -550,18 +552,41 @@
 
 /* ── Responsive ───────────────────────────────────────────── */
 @media (max-width: 900px) {
-  .navbar-logo        { width: auto; flex-shrink: 1; padding-left: 1.5rem; }
+  .navbar-logo        { width: auto; flex-shrink: 1; padding-left: 1rem; gap: 8px; }
   .navbar-search      { display: none; }
   .navbar-search-btn  { display: flex; }
   .navbar-search-mobile { display: flex; }
   .navbar-burger      { display: flex; }
   .navbar-mobile      { display: flex; }
   .navbar-profile-label { display: none; }
-  .navbar-profile     { padding: 0.28rem 0.5rem; }
+  .navbar-profile     { 
+    padding: 6px; 
+    border-radius: 8px; 
+    border-color: transparent; 
+    background: transparent; 
+  }
+  .navbar-profile:hover {
+    background: rgba(245, 197, 24, 0.06);
+    border-color: rgba(245, 197, 24, 0.2);
+  }
+  .navbar-divider     { display: none; }
   .magsuri-wrapper    { display: none; }
+  .navbar-actions     { gap: 0.2rem; margin-right: 0.5rem; }
+}
+
+@media (max-width: 500px) {
+  .navbar-logo-text   { display: none; } /* Hide the word 'PANURI' to save space */
+  .navbar-logo        { padding-left: 0.75rem; }
+  .navbar-inner       { padding: 0; }
 }
 
 @media (max-width: 400px) {
-  .navbar-inner { padding: 0 1rem; height: 60px; }
-  .navbar-logo-img { height: 52px; }
+  .navbar-inner { height: 60px; }
+  .navbar-logo-img { height: 42px; }
+  .navbar-actions { gap: 0; margin-right: 0.25rem; }
+  .navbar-search-btn, .pagsusulit-btn, .navbar-burger { 
+    width: 32px; 
+    height: 32px; 
+    padding: 0;
+  }
 }

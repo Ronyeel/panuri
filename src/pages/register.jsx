@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
+import { createUserWithEmailAndPassword, updateProfile, signInWithEmailAndPassword } from 'firebase/auth'
 import { doc, setDoc } from 'firebase/firestore'
 import { auth, db } from '../API/firebase'
 import { useUI } from '../context/UIContext'
@@ -89,6 +89,33 @@ export default function Registration() {
       notify(`Maligayang pagdating, ${form.username}! Matagumpay kang nagrehistro.`, 'success')
       navigate('/', { replace: true })
     } catch (err) {
+      if (err.code === 'auth/email-already-in-use') {
+        try {
+          // Try to verify ownership of the dangling Auth account
+          const { user } = await signInWithEmailAndPassword(auth, form.email, form.password)
+          
+          // Recreate the Firestore profile since they proved ownership
+          await updateProfile(user, { displayName: form.username })
+          await setDoc(doc(db, 'users', user.uid), {
+            username:  form.username.toLowerCase(),
+            email:     form.email,
+            role:      'user',
+            papel:     form.role,
+            paaralan:  form.paaralan,
+            kurso:     form.kurso,
+            createdAt: new Date(),
+          })
+          notify(`Profile naibalik! Matagumpay kang nagrehistro muli, ${form.username}.`, 'success')
+          navigate('/', { replace: true })
+          return // Exit successful
+        } catch (signInErr) {
+          // Password didn't match the old account
+          setErrors({ email: 'Ang email na ito ay rehistrado na. Kung nabura ang iyong profile, ilagay ang dating password upang makapag-rehistro muli.' })
+          triggerShake()
+          return
+        }
+      }
+      
       setErrors({ email: firebaseError(err.code) })
       triggerShake()
     } finally {

@@ -1,24 +1,21 @@
 
 
-/* ── Variables ────────────────────────────────────────────────────────────── */
-:root {
+/* ── Variables & Root ─────────────────────────────────────────────────────── */
+.fb-root {
   --gold:         #e8b84b;
   --gold-a10:     rgba(232, 184, 75, 0.10);
   --gold-a20:     rgba(232, 184, 75, 0.20);
-  --bg:           #111010;
+  --bg:           #000000;
   --bg2:          #1a1917;
   --text:         #ddd5c0;
   --muted:        rgba(221, 213, 192, 0.45);
   --faint:        rgba(221, 213, 192, 0.15);
   --rule:         rgba(221, 213, 192, 0.08);
-  --page-w:       clamp(240px, 36vw, 480px);
-  --page-h:       clamp(340px, 74vh, 700px);
-  --dur:          300ms;                              /* ← was 500ms */
-  --ease-flip:    cubic-bezier(0.4, 0, 0.2, 1);      /* ← simpler easing */
-}
+  --page-h:       clamp(340px, 78vh, 800px);
+  --page-w:       calc(var(--page-h) * 0.72);
+  --dur:          300ms;
+  --ease-flip:    cubic-bezier(0.4, 0, 0.2, 1);
 
-/* ── Root ─────────────────────────────────────────────────────────────────── */
-.fb-root {
   position: fixed;
   inset: 0;
   z-index: 300;
@@ -30,7 +27,7 @@
   font-family: var(--font-display);
   opacity: 0;
   transform: translateY(6px);
-  transition: opacity 0.25s ease, transform 0.25s ease; /* ← faster entry */
+  transition: opacity 0.25s ease, transform 0.25s ease;
 }
 .fb-root--in {
   opacity: 1;
@@ -133,7 +130,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2rem 1rem 1.2rem;
+  padding: 1rem 1rem;
   perspective: 2000px;
 }
 
@@ -382,14 +379,30 @@
 
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 @media (max-width: 580px) {
-  :root {
-    --page-w: clamp(150px, 44vw, 240px);
-    --page-h: clamp(220px, 58vh, 420px);
+  .fb-root {
+    --page-w: 90vw; /* take up full width for single page */
+    --page-h: calc(var(--page-w) * 1.45);
   }
+  .fb-stage { padding: 1rem 0; }
   .fb-header { padding: 0.7rem 0.9rem; }
   .fb-title  { font-size: 0.82rem; max-width: 50vw; }
   .fb-footer { padding: 0.7rem 0.9rem 1rem; }
   .fb-nav-btn span,
   .fb-nav-btn:not(:has(svg)) { font-size: 0; }
   .fb-nav-btn { min-width: auto; padding: 8px 10px; }
+
+  /* Single Page Mode Overrides */
+  .fb-book {
+    width: var(--page-w); /* don't double width */
+  }
+  .fb-page--left, .fb-spine, .fb-leaf {
+    display: none !important;
+  }
+  .fb-page--right {
+    border-radius: 4px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+  .fb-page--right .fb-page-content {
+    border-radius: 4px;
+  }
 }

@@ -42,17 +42,16 @@ export default function Pagsuslit() {
   const [answered,    setAnswered]    = useState(false)
   const [score,       setScore]       = useState(0)
 
-  // Name prompt before starting
-  const [namePrompt,   setNamePrompt]   = useState(false)
-  const [playerName,   setPlayerName]   = useState('')
-  const [pendingSetId, setPendingSetId] = useState(null)
-
   // Attempt tracking
   const attemptIdRef = useRef(null)
   const responsesRef = useRef([])
 
   const [finished,   setFinished]   = useState(false)
   const [hasPending, setHasPending] = useState(false)
+
+  // Retake warning modal
+  const [pendingRetake, setPendingRetake]   = useState(null)
+  const [deletingRetake, setDeletingRetake] = useState(false)
 
   // Filtering state
   const [searchTerm, setSearchTerm] = useState('')
@@ -67,43 +66,37 @@ export default function Pagsuslit() {
     return matchSearch && matchDiff && matchCat;
   });
 
-  // Pre-fill player name from Firebase
-  useEffect(() => {
-    const user = auth.currentUser
-    if (user?.displayName) setPlayerName(user.displayName)
-  }, [])
+
 
   // ── Fetch + realtime subscribe to quiz sets ───────────────────────────────
 
-  useEffect(() => {
-    let channel
+  const fetchSets = useCallback(async (isInitial = true) => {
+    if (isInitial) setLoading(true)
+    const { data, error } = await supabase
+      .from('quiz_sets')
+      .select('*, quiz_questions(count)')
+      .order('created_at', { ascending: true })
 
-    const load = async () => {
-      setLoading(true)
-      const { data, error } = await supabase
-        .from('quiz_sets')
-        .select('*, quiz_questions(count)')
-        .order('created_at', { ascending: true })
-
-      if (!error && data?.length) {
-        setSets(data)
-        setPendingSetId(prev => prev ?? data[0].id)
-      }
-      setLoading(false)
+    if (!error) {
+      setSets(data || [])
     }
+    if (isInitial) setLoading(false)
+  }, [])
 
-    load()
+  useEffect(() => {
+    fetchSets(true)
 
-    // Realtime: reflect admin changes to sets instantly
-    channel = supabase
-      .channel('quiz_sets_realtime')
+    const channel = supabase.channel('pagsusulit_sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_sets' }, () => {
-        load()
+        fetchSets(false)
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_questions' }, () => {
+        fetchSets(false)
       })
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [])
+  }, [fetchSets])
 
   // ── Start a quiz ──────────────────────────────────────────────────────────
 
@@ -145,16 +138,57 @@ export default function Pagsuslit() {
     setScore(0)
     setFinished(false)
     setHasPending(false)
-    setNamePrompt(false)
   }, [])
 
-  const handleSelectSet = (setId) => {
-    setPendingSetId(setId)
-    setNamePrompt(true)
+  const handleSelectSet = async (setId) => {
+    const user = auth.currentUser;
+    const uid = user?.uid;
+    const name = user?.displayName || user?.email?.split('@')[0] || 'Anonymous';
+
+    if (uid) {
+      // Check if ANY attempt already exists for this user+set (not just maybeSingle)
+      const { data: existing } = await supabase
+        .from('quiz_attempts')
+        .select('id')
+        .eq('set_id', setId)
+        .eq('user_uid', uid)
+        .limit(1)
+
+      if (existing && existing.length > 0) {
+        // Store ALL attempt IDs so we delete them all on confirm
+        const { data: allAttempts } = await supabase
+          .from('quiz_attempts')
+          .select('id')
+          .eq('set_id', setId)
+          .eq('user_uid', uid)
+
+        setPendingRetake({ setId, attemptIds: allAttempts.map(a => a.id), name })
+        return
+      }
+    }
+    
+    startQuiz(setId, name);
   }
 
-  const handleNameSubmit = () => {
-    if (pendingSetId) startQuiz(pendingSetId, playerName.trim())
+  const confirmRetake = async () => {
+    if (!pendingRetake) return;
+    setDeletingRetake(true);
+    
+    // Delete ALL old responses and attempts for this user+set
+    const { attemptIds, setId, name } = pendingRetake;
+    for (const id of attemptIds) {
+      await supabase.from('quiz_responses').delete().eq('attempt_id', id);
+    }
+    await supabase.from('quiz_attempts').delete().in('id', attemptIds);
+    
+    setPendingRetake(null);
+    setDeletingRetake(false);
+    
+    startQuiz(setId, name);
+  }
+
+  const cancelRetake = () => {
+    setPendingRetake(null);
   }
 
   // ── Current question helpers ──────────────────────────────────────────────
@@ -234,16 +268,17 @@ export default function Pagsuslit() {
   }, [currentIndex, total])
 
   const handleRetry = () => {
-    setActiveSetId(null)
-    setFinished(false)
-    setNamePrompt(true)
+    if (activeSetId) {
+      // Always go through handleSelectSet so the warning modal fires
+      handleSelectSet(activeSetId);
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
-      <section className="pagsuslit" aria-label="Pagsuslit — Pagsusulit">
+      <section className="pagsuslit" aria-label="Pagsusulit — Pagsusulit">
         <div className="pagsuslit-inner">
           <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem 0', color: 'var(--text-muted)' }}>
             Naglo-load ng mga tanong…
@@ -255,7 +290,7 @@ export default function Pagsuslit() {
 
   if (sets.length === 0) {
     return (
-      <section className="pagsuslit" aria-label="Pagsuslit — Pagsusulit">
+      <section className="pagsuslit" aria-label="Pagsusulit — Pagsusulit">
         <div className="pagsuslit-inner">
           <p style={{ textAlign: 'center', padding: '4rem 0', color: 'var(--text-muted)', fontFamily: "'Crimson Text', serif" }}>
             Wala pang mga tanong. Bumalik na lang mamaya!
@@ -266,7 +301,38 @@ export default function Pagsuslit() {
   }
 
   return (
-    <section className="pagsuslit" aria-label="Pagsuslit — Pagsusulit">
+    <section className="pagsuslit" aria-label="Pagsusulit — Pagsusulit">
+
+      {/* Warning Modal for Retaking Quiz */}
+      {pendingRetake && (
+        <div className="pagsuslit-modal-overlay">
+          <div className="pagsuslit-modal" role="dialog" aria-modal="true" style={{ textAlign: 'center' }}>
+            <h2 className="pagsuslit-modal-title" style={{ color: 'var(--red)' }}>Uulitin ang Pagsusulit?</h2>
+            <p className="pagsuslit-modal-desc">
+              Mayroon ka nang nakaraang record para sa pagsusulit na ito. 
+              Kung uulitin mo ito, <strong>MABUBURA</strong> ang iyong nakaraang iskor at mga sagot. 
+              Gusto mo bang ituloy?
+            </p>
+            <div className="pagsuslit-modal-actions" style={{ justifyContent: 'center', gap: '1rem' }}>
+              <button 
+                className="pagsuslit-modal-btn pagsuslit-modal-btn--secondary"
+                onClick={cancelRetake}
+                disabled={deletingRetake}
+              >
+                Kanselahin
+              </button>
+              <button 
+                className="pagsuslit-modal-btn pagsuslit-modal-btn--primary"
+                onClick={confirmRetake}
+                disabled={deletingRetake}
+              >
+                {deletingRetake ? 'Binubura...' : 'Burahin at Ulitin'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="pagsuslit-inner">
 
         {/* ── Header ── */}
@@ -276,41 +342,12 @@ export default function Pagsuslit() {
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
             </div>
             <div>
-              <h2 style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700, fontSize: '2rem', color: '#f5c518', margin: '0 0 0.2rem' }}>Pagsusulit</h2>
+              <h2 style={{ fontFamily: "'Georgia', 'Times New Roman', serif", fontWeight: 700, fontSize: '2rem', color: '#d4a300', margin: '0 0 0.2rem', textShadow: '1px 1px 2px rgba(0, 0, 0, 0.2)' }}>PAGSUSULIT</h2>
               <p style={{ fontFamily: 'Montserrat, sans-serif', fontSize: '0.9rem', color: '#aaa', margin: 0 }}>Subukan ang iyong kaalaman sa iba't ibang paksa</p>
             </div>
           </header>
         )}
 
-        {/* ── Name prompt modal ── */}
-        {namePrompt && (
-          <div className="pagsuslit-name-backdrop" onClick={e => { if (e.target === e.currentTarget) setNamePrompt(false) }}>
-            <div className="pagsuslit-name-modal">
-              <h3 style={{ margin: '0 0 6px', color: 'var(--text-primary, #e0e0e0)', fontSize: 18 }}>
-                Ano ang iyong pangalan?
-              </h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '0 0 16px' }}>
-                Para sa leaderboard at talaan ng pagsusulit
-              </p>
-              <input
-                className="pagsuslit-name-input"
-                value={playerName}
-                onChange={e => setPlayerName(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleNameSubmit()}
-                placeholder="Ilagay ang iyong pangalan..."
-                autoFocus
-              />
-              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                <button className="pagsuslit-other-btn" style={{ flex: 1 }} onClick={() => setNamePrompt(false)}>
-                  Kanselahin
-                </button>
-                <button className="pagsuslit-retry-btn" style={{ flex: 2 }} onClick={handleNameSubmit}>
-                  Simulan →
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* ── Set selector ── */}
         {!activeSetId && (() => {
@@ -442,6 +479,86 @@ export default function Pagsuslit() {
                         Ibang Set
                       </button>
                     )}
+                  </div>
+
+                  {/* ── Summary of Answers ── */}
+                  <div className="pagsuslit-summary" style={{ marginTop: '3rem', textAlign: 'left', width: '100%' }}>
+                    <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.8rem', color: '#d4a300', fontSize: '1.2rem', fontFamily: "'Georgia', serif", marginBottom: '1.5rem' }}>Buod ng mga Sagot</h3>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      {questions.map((q, i) => {
+                        const r = responsesRef.current[i];
+                        if (!r) return null;
+                        
+                        let displayAnswer = r.answer_text;
+                        let correctDisplay = null;
+
+                        if (q.type === 'multiple_choice') {
+                          const idx = parseInt(r.answer_text, 10);
+                          displayAnswer = isNaN(idx) ? r.answer_text : (q.choices?.[idx] ?? r.answer_text);
+                          correctDisplay = q.choices?.[q.correct_index] ?? '—';
+                        }
+                        if (q.type === 'true_false') {
+                          displayAnswer = r.answer_text === 'true' ? 'Tama (True)' : 'Mali (False)';
+                          correctDisplay = q.correct_tf ? 'Tama (True)' : 'Mali (False)';
+                        }
+
+                        const isCorrect = r.is_correct;
+                        const needsGrading = r.needs_grading;
+                        
+                        let bgColor = 'rgba(255,255,255,0.02)';
+                        let borderColor = 'rgba(255,255,255,0.06)';
+                        let icon = '';
+
+                        if (needsGrading) {
+                          borderColor = 'rgba(245,185,66,0.3)';
+                          icon = '⏳ Pending';
+                        } else if (isCorrect === true) {
+                          borderColor = 'rgba(34,211,165,0.3)';
+                          icon = '✓ Tama';
+                        } else if (isCorrect === false) {
+                          borderColor = 'rgba(255,95,109,0.3)';
+                          icon = '✕ Mali';
+                        }
+
+                        return (
+                          <div key={i} style={{ background: bgColor, border: `1px solid ${borderColor}`, borderRadius: '12px', padding: '1.2rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem' }}>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#888', background: 'rgba(255,255,255,0.05)', padding: '0.2rem 0.6rem', borderRadius: '4px' }}>
+                                TANONG {i + 1}
+                              </span>
+                              <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: isCorrect ? '#22d3a5' : needsGrading ? '#f5b942' : '#ff5f6d' }}>
+                                {icon}
+                              </span>
+                            </div>
+                            
+                            <p style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: '#e0e0e0', lineHeight: 1.5 }}>
+                              {q.question}
+                            </p>
+                            
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.9rem' }}>
+                              <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.6rem 0.8rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                <span style={{ opacity: 0.5, fontSize: '0.75rem', display: 'block', marginBottom: '0.2rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Iyong sagot</span>
+                                <span style={{ color: needsGrading ? '#c4b5fd' : isCorrect ? '#22d3a5' : '#ff5f6d' }}>{displayAnswer}</span>
+                              </div>
+                              
+                              {!needsGrading && !isCorrect && (
+                                <div style={{ background: 'rgba(34,211,165,0.05)', padding: '0.6rem 0.8rem', borderRadius: '6px', border: '1px solid rgba(34,211,165,0.1)' }}>
+                                  <span style={{ opacity: 0.6, fontSize: '0.75rem', display: 'block', marginBottom: '0.2rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#22d3a5' }}>Tamang sagot</span>
+                                  <span style={{ color: '#22d3a5' }}>{correctDisplay}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {q.explanation && !needsGrading && (
+                              <div style={{ marginTop: '1rem', padding: '0.8rem 1rem', background: 'rgba(255,255,255,0.02)', borderLeft: '3px solid #4fa3e8', borderRadius: '0 6px 6px 0', fontSize: '0.85rem', color: '#aaa', lineHeight: 1.5 }}>
+                                {q.explanation}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
@@ -662,27 +779,6 @@ export default function Pagsuslit() {
       </div>
 
       <style>{`
-        .pagsuslit-name-backdrop {
-          position: fixed; inset: 0; z-index: 100;
-          background: rgba(0,0,0,0.65);
-          display: flex; align-items: center; justify-content: center;
-          padding: 1rem;
-        }
-        .pagsuslit-name-modal {
-          background: var(--bg-card, #141428);
-          border: 1px solid rgba(255,255,255,0.1);
-          border-radius: 16px; padding: 28px 24px;
-          width: 100%; max-width: 380px;
-        }
-        .pagsuslit-name-input {
-          width: 100%; box-sizing: border-box;
-          background: var(--bg-input, #1a1a2e);
-          border: 1.5px solid rgba(255,255,255,0.15);
-          border-radius: 8px; color: var(--text-primary, #e0e0e0);
-          font-size: 15px; padding: 10px 14px;
-          outline: none; font-family: inherit; transition: border-color 0.2s;
-        }
-        .pagsuslit-name-input:focus { border-color: rgba(99,102,241,0.6); }
         .pagsuslit-choice.selected {
           border-color: rgba(99,102,241,0.5);
           background: rgba(99,102,241,0.08);
