@@ -1,19 +1,18 @@
 .mascot-bubble-container {
   position: relative;
   display: inline-flex;
+  flex-direction: column-reverse;
   align-items: center;
   justify-content: center;
 }
 
 .mascot-speech-bubble {
-  position: absolute;
-  bottom: calc(100% - 40px);
-  left: 30%;
-  transform: translateX(-50%);
+  position: relative;
   background: #ffffff;
   border-radius: 20px;
   padding: 16px 20px;
   width: 280px;
+  margin-bottom: 20px;
   box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
   z-index: 20;
   animation: fadein 0.5s ease both;
@@ -23,8 +22,7 @@
 .mascot-speech-bubble::before {
   content: '';
   position: absolute;
-  top: auto;
-  bottom: -14px;
+  top: 100%;
   left: 50%;
   transform: translateX(-50%);
   border-width: 14px 14px 0 14px;
@@ -35,6 +33,7 @@
 @media (max-width: 768px) {
   .mascot-bubble-container {
     display: flex;
+    flex-direction: row;
     align-items: center;
     justify-content: center;
     gap: 0;
@@ -52,6 +51,7 @@
     bottom: auto;
     transform: none;
     padding: 14px 18px;
+    margin-bottom: 0;
     margin-left: -20px; /* Pull bubble significantly left to close transparent gap in PNG */
     z-index: 20;
   }

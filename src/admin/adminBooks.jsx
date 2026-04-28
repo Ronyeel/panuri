@@ -266,7 +266,7 @@ export default function AdminBooks() {
       <div className="ep-page-header">
         <div>
           <p className="ep-page-eyebrow">Koleksyon</p>
-          <h1 className="ep-page-title">Books</h1>
+          <h1 className="ep-page-title">AKLAT</h1>
         </div>
         <button className="ep-btn ep-btn--primary" onClick={openAdd}>
           <MdAdd size={16} />
@@ -623,7 +623,7 @@ export default function AdminBooks() {
 
                 {/* Quote */}
                 <div className="ep-form-group ep-form-group--full">
-                  <label>Piling Sipi (Quote)</label>
+                  <label>Quote</label>
                   <textarea value={form.quote} className="ep-input ep-textarea"
                     placeholder="Isang makabuluhang linya mula sa libro…" rows={3}
                     onChange={e => setForm(f => ({ ...f, quote: e.target.value }))} />

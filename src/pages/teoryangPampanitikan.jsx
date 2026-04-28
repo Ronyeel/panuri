@@ -214,7 +214,7 @@ export default function TeoryangPampanitikan() {
           <div className="tp-header-content">
             <h2>TEORYANG PAMPANITIKAN/MGA DULOG PAMPANITIKAN</h2>
           </div>
-        </div>
+        </div>  
 
         {/* Body Area */}
         <div className="tp-body-area">

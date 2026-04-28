@@ -303,13 +303,6 @@
 .tsa-glass-card p:last-child {
   margin-bottom: 0;
 }
-.tsa-highlight {
-  background: rgba(191,30,46,0.2);
-  color: #e83040;
-  font-weight: 600;
-  border-radius: 3px;
-  padding: 1px 4px;
-}
 
 /* ════════════════════════════════════════
    METODOLOHIYA — scattered playing cards
@@ -479,7 +472,10 @@
   color: #000;
   display: flex;
   flex-direction: column;
+  justify-content: center;
+  align-items: center;
   gap: 2px;
+  flex-grow: 1;
 }
 
 .tsa-team-name {
@@ -498,11 +494,42 @@
   color: #333;
 }
 
+/* ── Clickable Email ── */
 .tsa-team-email {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   font-family: var(--font-primary, 'Crimson Text', serif);
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  margin: 2px 0 0;
+  margin: 6px 0 2px;
+  padding: 5px 12px;
+  color: #bf1e2e;
+  background: rgba(191, 30, 46, 0.08);
+  border: 1px solid rgba(191, 30, 46, 0.4);
+  border-radius: 4px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+
+.tsa-team-email::before {
+  content: '✉';
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.tsa-team-email:hover {
+  background: #bf1e2e;
+  color: #ffffff;
+  border-color: #bf1e2e;
+  box-shadow: 0 3px 12px rgba(191, 30, 46, 0.4);
+  text-decoration: none;
+}
+
+.tsa-team-email:active {
+  transform: scale(0.96);
 }
 
 .tsa-quote-container {
@@ -563,5 +590,9 @@
   }
   .tsa-tugon-grid {
     grid-template-columns: 1fr;
+  }
+  .tsa-team-grid {
+    grid-template-columns: 1fr;
+    max-width: 320px;
   }
 }

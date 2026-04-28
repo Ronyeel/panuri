@@ -38,9 +38,9 @@ function titlesMatch(a = '', b = '') {
 
 // ── Single card ───────────────────────────────────────────────────────────────
 function ExcerptCard({ item, index, isActive, onClick, onRead }) {
-  const ref      = useRef(null)
-  const visible  = useIntersection(ref)
-  const hasPdf   = Boolean(item.pdf)
+  const ref = useRef(null)
+  const visible = useIntersection(ref)
+  const hasPdf = Boolean(item.pdf)
   const hasCover = Boolean(item.cover)
 
   useEffect(() => {
@@ -57,8 +57,8 @@ function ExcerptCard({ item, index, isActive, onClick, onRead }) {
       id={String(item.id)}
       className={[
         'exc-card',
-        isActive ? 'exc-card--active'  : '',
-        visible  ? 'exc-card--visible' : '',
+        isActive ? 'exc-card--active' : '',
+        visible ? 'exc-card--visible' : '',
       ].join(' ').trim()}
       style={{ '--i': index }}
       onClick={() => onClick(item.id)}
@@ -67,7 +67,7 @@ function ExcerptCard({ item, index, isActive, onClick, onRead }) {
       onKeyDown={e => e.key === 'Enter' && onClick(item.id)}
       aria-expanded={isActive}
     >
-      <div className="exc-card__glow"   aria-hidden="true" />
+      <div className="exc-card__glow" aria-hidden="true" />
       <div className="exc-card__corner" aria-hidden="true" />
 
       {/* Cover */}
@@ -96,7 +96,7 @@ function ExcerptCard({ item, index, isActive, onClick, onRead }) {
         <h3 className="exc-card__title">{item.bookTitle}</h3>
         <p className="exc-card__author">ni {item.author}</p>
         {item.is_excerpt && (
-          <span className="exc-excerpt-badge">Sipi lamang</span>
+          <span className="exc-excerpt-badge">Excerpt lamang</span>
         )}
       </div>
 
@@ -115,7 +115,7 @@ function ExcerptCard({ item, index, isActive, onClick, onRead }) {
               if (hasPdf) onRead(item)
             }}
           >
-            {hasPdf ? 'Basahin ang Sipi →' : 'Wala pang PDF'}
+            {hasPdf ? 'Basahin ang Excerpt →' : 'Wala pang PDF'}
           </button>
         </div>
       </div>
@@ -135,16 +135,33 @@ function ExcerptCard({ item, index, isActive, onClick, onRead }) {
 
 // ── Page component ────────────────────────────────────────────────────────────
 export default function ExcerptsPage() {
-  const navigate  = useNavigate()
-  const location  = useLocation()
+  const navigate = useNavigate()
+  const location = useLocation()
 
-  const [excerpts,   setExcerpts]   = useState([])
-  const [loading,    setLoading]    = useState(true)
-  const [filter,     setFilter]     = useState('Lahat')
-  const [activeId,   setActiveId]   = useState(null)
+  const [excerpts, setExcerpts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState('Lahat')
+  const [activeId, setActiveId] = useState(null)
   const [readerBook, setReaderBook] = useState(null)
-  const headerRef     = useRef(null)
+  const headerRef = useRef(null)
   const headerVisible = useIntersection(headerRef)
+
+  // Realtime refs
+  const mountedRef = useRef(true)
+  const channelRef = useRef(null)
+  const retryTimerRef = useRef(null)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      clearTimeout(retryTimerRef.current)
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+        channelRef.current = null
+      }
+    }
+  }, [])
 
   // ── Fetch ───────────────────────────────────────────────────────────────────
   const fetchExcerpts = useCallback(async () => {
@@ -168,13 +185,13 @@ export default function ExcerptsPage() {
       })
       setExcerpts(normalized)
 
-      const params    = new URLSearchParams(window.location.search)
+      const params = new URLSearchParams(window.location.search)
       const bookParam = params.get('book')
-      const openRead  = params.get('read') === '1'
+      const openRead = params.get('read') === '1'
 
       if (bookParam && !activeId) {
         const decoded = decodeURIComponent(bookParam)
-        const match   = normalized.find(e => titlesMatch(e.bookTitle, decoded))
+        const match = normalized.find(e => titlesMatch(e.bookTitle, decoded))
         if (match) {
           setActiveId(match.id)
           if (openRead && match.pdf) setReaderBook(match)
@@ -194,20 +211,43 @@ export default function ExcerptsPage() {
     return () => clearTimeout(timer)
   }, [excerpts])
 
+  const subscribe = useCallback(() => {
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current)
+      channelRef.current = null
+    }
+
+    const channel = supabase.channel(`excerpts_public_${Date.now()}_${Math.random()}`, {
+      config: { presence: { key: 'excerpts' } }
+    })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'excerpts' }, fetchExcerpts)
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          fetchExcerpts()
+        }
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          fetchExcerpts()
+          clearTimeout(retryTimerRef.current)
+          retryTimerRef.current = setTimeout(() => {
+            if (mountedRef.current) subscribe()
+          }, 3000)
+        }
+      })
+
+    channelRef.current = channel
+  }, [fetchExcerpts])
+
   useEffect(() => {
     fetchExcerpts()
-    const channel = supabase.channel('excerpts_public')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'excerpts' }, fetchExcerpts)
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [fetchExcerpts])
+    subscribe()
+  }, [fetchExcerpts, subscribe])
 
   // ── Hash navigation — from search bar (/excerpts#<id>) ─────────────────────
   useEffect(() => {
     if (!location.hash || loading) return
 
     const hashId = location.hash.replace('#', '')
-    const match  = excerpts.find(e => String(e.id) === hashId)
+    const match = excerpts.find(e => String(e.id) === hashId)
 
     if (match) {
       setActiveId(match.id)
@@ -226,9 +266,9 @@ export default function ExcerptsPage() {
     }
   }, [location.hash, loading, excerpts])
 
-  const tags     = ['Lahat', ...Array.from(new Set(excerpts.map(e => e.tag).filter(Boolean)))]
+  const tags = ['Lahat', ...Array.from(new Set(excerpts.map(e => e.tag).filter(Boolean)))]
   const filtered = filter === 'Lahat' ? excerpts : excerpts.filter(e => e.tag === filter)
-  const toggle   = (id) => setActiveId(prev => prev === id ? null : id)
+  const toggle = (id) => setActiveId(prev => prev === id ? null : id)
 
   // ── FlipBook ────────────────────────────────────────────────────────────────
   if (readerBook) {
@@ -244,7 +284,7 @@ export default function ExcerptsPage() {
   return (
     <main className="exc-page">
       <div className="exc-page__texture" aria-hidden="true" />
-      <div className="exc-page__diag"    aria-hidden="true" />
+      <div className="exc-page__diag" aria-hidden="true" />
 
       <div className="exc-page__inner">
 
@@ -292,11 +332,11 @@ export default function ExcerptsPage() {
         {loading ? (
           <div className="exc-loading">
             <div className="exc-loading__spinner" />
-            <p>Naglo-load ang mga sipi…</p>
+            <p>Naglo-load ang mga excerpt…</p>
           </div>
         ) : excerpts.length === 0 ? (
           <div className="exc-loading">
-            <p>Walang mga sipi sa ngayon.</p>
+            <p>Walang mga excerpt sa ngayon.</p>
           </div>
         ) : (
           <div className="exc-grid">

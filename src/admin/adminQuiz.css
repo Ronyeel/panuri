@@ -1526,4 +1526,31 @@
   .qz-modal-header, .qz-modal-body, .qz-modal-footer { padding-inline: 16px; }
   .qz-response-detail-grid { grid-template-columns: 1fr; }
   .qz-attempt-right { display: none; }
+
+  /* ── Modal always viewport-centered on mobile ── */
+  .qz-backdrop {
+    position: fixed;
+    inset: 0;
+    padding: 12px;
+    align-items: center;
+    justify-content: center;
+    /* Ensure it sits above any sidebar/layout transforms */
+    transform: none;
+    will-change: unset;
+  }
+
+  .qz-modal,
+  .qz-modal--wide {
+    max-width: 100%;
+    max-height: 88dvh;   /* use dvh so browser chrome doesn't push it off */
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .qz-modal-body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    flex: 1;
+  }
 }

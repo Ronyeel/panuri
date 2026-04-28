@@ -101,7 +101,7 @@ export default function Pagsusuri() {
     <div className="pagsusuri-page">
 
       {/* ── Hero ── */}
-      <header className="pagsusuri-hero">
+      <header className="pagsusuri-hero" id="pagsusuri-hero">
         <p className="hero-eyebrow">Pagsusuri</p>
         <h1 className="hero-title">
           Ano ba ang Pagsusuri para sa isang katulad kong Mapaghamong Mag-aaral?
@@ -180,8 +180,8 @@ export default function Pagsusuri() {
 
         {/* Level Cards — letter aligned with each row */}
         <section className="pagsusuri-levels" aria-label="Mga Antas ng Pagsusuri">
-          {LEVELS.map((level) => (
-            <div key={level.id} className="level-row">
+          {LEVELS.map((level, i) => (
+            <div key={level.id} id={`pagsusuri-level-${i}`} className="level-row">
               <div className="spine-letter" aria-hidden="true">{level.letter}</div>
               <div className="level-content">
                 <h2 className="level-heading">{level.heading}</h2>
@@ -194,7 +194,7 @@ export default function Pagsusuri() {
       </main>
 
       {/* ── Layunin ng Pagsusuri ── */}
-      <section className="layunin-section">
+      <section className="layunin-section" id="pagsusuri-layunin-section">
         <div className="layunin-inner">
 
           {/* Title tag — same as TSA section tag */}
@@ -250,7 +250,7 @@ export default function Pagsusuri() {
       </section>
 
       {/* ── Hakbang Timeline ── */}
-      <section className="hakbang-section" aria-label="Mga Hakbang sa Pagsusuri">
+      <section className="hakbang-section" id="pagsusuri-hakbang-section" aria-label="Mga Hakbang sa Pagsusuri">
         <div className="hakbang-inner">
           <h2 className="hakbang-title">
             Mga Hakbang sa Mabuting Pagsusuri<br />
@@ -264,6 +264,7 @@ export default function Pagsusuri() {
               return (
                 <div
                   key={step.number}
+                  id={`pagsusuri-hakbang-${step.number}`}
                   data-step={step.number}
                   className={`hakbang-item hakbang-item--${i % 2 === 0 ? 'left' : 'right'} ${isVisible ? 'is-visible' : ''}`}
                 >

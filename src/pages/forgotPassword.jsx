@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { sendPasswordResetEmail } from 'firebase/auth'
 import { auth } from '../API/firebase'
 import { useUI } from '../context/UIContext'
+import MascotBubble from '../components/MascotBubble'
 import './auth.css'
 
 function validate({ email }) {
@@ -43,7 +44,6 @@ export default function ForgotPassword() {
       notify('Ipinadala na ang password reset link sa iyong email.', 'success')
       navigate('/login', { replace: true })
     } catch (err) {
-      // Basic mapping of Firebase errors
       if (err.code === 'auth/user-not-found') {
         setErrors({ email: 'Walang nakitang account sa email na ito.' })
       } else {
@@ -60,7 +60,9 @@ export default function ForgotPassword() {
       <div className={`auth-card${shake ? ' auth-card--shake' : ''}`}>
 
         <div className="auth-brand">
-          <div className="auth-hero-image"></div>
+          <div className="auth-hero-image">
+            <MascotBubble mode="forgot" />
+          </div>
         </div>
 
         <div className="auth-right">

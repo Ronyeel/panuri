@@ -372,3 +372,479 @@
     padding: 14px 12px 12px;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════
+   PAMANTAYAN CARDS — 4×2 grid (between school banner & CTA)
+════════════════════════════════════════════════════════════════ */
+.hp-cards-section {
+  background: #0d0d0d;
+  border-top: 1px solid #1e1e1e;
+  border-bottom: 1px solid #1e1e1e;
+  padding: clamp(40px, 6vw, 72px) 0;
+  position: relative;
+  overflow: hidden; /* Restored to prevent horizontal scrollbar from ::before */
+}
+
+/* Lightweight ambiance glow */
+.hp-cards-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at 50% 50%, rgba(139, 0, 0, 0.05) 0%, rgba(201, 162, 0, 0.02) 40%, transparent 80%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.hp-cards-inner {
+  position: relative;
+  z-index: 1;
+  max-width: min(1080px, 95vw);
+  margin: 0 auto;
+  padding: 0 var(--space-md);
+}
+
+.hp-cards-intro-text {
+  font-family: var(--font-primary);
+  font-size: clamp(0.95rem, 1.5vw, 1.1rem);
+  color: #e4dccf;
+  text-align: center;
+  max-width: 800px;
+  margin: 0 auto 24px;
+  line-height: 1.6;
+  font-style: italic;
+}
+
+/* ── Eyebrow label ── */
+.hp-cards-eyebrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: clamp(24px, 4vw, 40px);
+}
+
+.hp-cards-line {
+  display: block;
+  height: 1px;
+  width: clamp(40px, 8vw, 90px);
+  background: linear-gradient(90deg, transparent, rgba(201,162,0,0.45), transparent);
+}
+
+.hp-cards-label {
+  font-family: var(--font-display);
+  font-size: clamp(0.85rem, 1.5vw, 1.05rem); /* Increased size */
+  font-weight: 700;
+  letter-spacing: 0.25em; /* Adjusted letter spacing to match bigger text */
+  text-transform: uppercase;
+  color: var(--gold-dk);
+  white-space: nowrap;
+}
+
+/* ── Grid ── */
+.hp-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+/* ── Card base ── */
+.hp-card {
+  background: #181818;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px;
+  padding: 18px 16px 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  outline: none;
+  user-select: none;
+  transition:
+    transform 0.15s ease-out,
+    border-color 0.15s ease-out,
+    background 0.15s ease-out;
+}
+
+.hp-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(201,162,0,0.25);
+}
+
+.hp-card:focus-visible {
+  border-color: var(--gold-dk);
+  box-shadow: 0 0 0 2px rgba(201,162,0,0.35);
+}
+
+/* ── Active / selected — red ── */
+.hp-card--active {
+  background: #8b0000;
+  border-color: var(--red);
+}
+.hp-card--active:hover {
+  border-color: #e83040;
+  transform: translateY(-4px);
+}
+.hp-card--active .hp-card-numeral  { color: #fff; }
+.hp-card--active .hp-card-title    { color: #ffe6e6; }
+.hp-card--active .hp-bullet-dot    { background: #ffb3b3; }
+.hp-card--active .hp-card-bullets li { color: #ffcece; }
+.hp-card--active .hp-card-link,
+.hp-card--active .hp-card-footer svg { color: #ffdddd; }
+
+/* ── Card header ── */
+.hp-card-numeral {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  color: var(--gold-dk);
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.hp-card-title {
+  font-family: var(--font-accent);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #d4cdc0;
+  line-height: 1.4;
+  margin: 0;
+  flex: 1;
+}
+
+/* ── Footer ── */
+.hp-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+.hp-card-link {
+  font-family: var(--font-primary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold-dk);
+}
+
+.hp-card-footer svg { color: var(--gold-dk); flex-shrink: 0; }
+
+
+/* ── Closing text below grid ── */
+.hp-cards-closing {
+  margin-top: clamp(20px, 3vw, 32px);
+  position: relative;
+  background: rgba(20, 20, 20, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: clamp(22px, 3.5vw, 36px);
+}
+
+.hp-cards-closing::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  border-radius: 10px 10px 0 0;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(191, 30, 46, 0.7) 30%,
+    rgba(201, 162, 0, 0.5) 50%,
+    rgba(191, 30, 46, 0.7) 70%,
+    transparent 100%);
+}
+
+.hp-cards-closing p {
+  font-family: var(--font-primary);
+  font-size: 1.05rem;
+  line-height: 1.9;
+  color: #e4dccf;
+  text-align: justify;
+  margin-bottom: 18px;
+}
+
+.hp-cards-closing p:last-child {
+  margin-bottom: 0;
+}
+
+
+
+.hp-table-container {
+  margin-top: clamp(32px, 5vw, 56px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: clamp(24px, 4vw, 40px);
+}
+
+.hp-table-title {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #c9a200;
+  text-align: left;
+  margin-bottom: 20px;
+  font-family: var(--font-primary);
+  font-style: italic;
+}
+
+.hp-table-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+  color: #e4dccf;
+  font-weight: 600;
+  font-family: var(--font-primary);
+}
+
+.hp-marking-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: #0a0a0a;
+}
+
+.hp-marking-table th,
+.hp-marking-table td {
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-family: var(--font-primary);
+}
+
+.hp-marking-table th {
+  color: #c9a200;
+  font-weight: 700;
+  font-size: 1rem;
+  font-style: italic;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+}
+
+.hp-marking-table td {
+  font-size: 0.95rem;
+  color: #e4dccf;
+}
+
+.hp-marking-table td:first-child {
+  font-weight: 700;
+  text-align: center;
+  width: 80px;
+}
+
+.hp-marking-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* ── Detailed Rubric Table Overrides ── */
+.hp-table-rubric-container {
+  border-top: none; /* remove top border since it follows the previous table */
+  padding-top: 10px;
+}
+
+.hp-table-title--bold {
+  font-style: normal;
+  font-size: 1rem;
+  color: #e4dccf;
+}
+
+.hp-table-title--bold strong {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 0.02em;
+  color: #c9a200;
+}
+
+.hp-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.hp-rubric-table td:first-child {
+  width: 25%;
+  text-align: left;
+  font-weight: normal;
+  font-size: 0.9rem;
+}
+
+.hp-rubric-table th,
+.hp-rubric-table td {
+  min-width: 120px; /* ensure columns don't crush on small screens */
+  vertical-align: top;
+  font-size: 0.9rem;
+}
+
+.hp-rubric-table td:first-child strong {
+  font-family: var(--font-accent);
+  color: #c9a200;
+}
+
+.hp-rubric-table th.hp-center-col,
+.hp-rubric-table td.hp-center-col,
+.hp-summary-table th.hp-center-col,
+.hp-summary-table td.hp-center-col {
+  text-align: center;
+}
+
+/* ── Summary Table Overrides ── */
+.hp-summary-table td:first-child {
+  width: auto;
+  text-align: left;
+  font-size: 0.95rem;
+}
+
+.hp-summary-table th.hp-center-col,
+.hp-summary-table td.hp-center-col {
+  width: 100px;
+}
+
+/* ── Interpretasyon Table Overrides ── */
+.hp-interpret-table th.hp-center-col,
+.hp-interpret-table td.hp-center-col {
+  width: 140px;
+}
+
+.hp-interpret-table th:last-child,
+.hp-interpret-table td:last-child {
+  text-align: left;
+}
+
+.hp-interpret-table td:first-child {
+  font-weight: 700;
+  color: #c9a200;
+}
+
+@media (max-width: 600px) {
+  .hp-cards-closing p { text-align: left; }
+  .hp-table-meta { flex-direction: column; gap: 6px; text-align: left; }
+}
+
+
+/* ════════════════════════════════════════
+   MODAL — Pamantayan Content
+════════════════════════════════════════ */
+.hp-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.hp-modal-content {
+  background: #181818;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 600px;
+  max-height: 85vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  padding: clamp(24px, 4vw, 40px);
+}
+
+.hp-modal-content::-webkit-scrollbar {
+  width: 8px;
+}
+.hp-modal-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+.hp-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  color: #8a8270;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.hp-modal-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e4dccf;
+}
+
+.hp-modal-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.hp-modal-numeral {
+  font-family: var(--font-display, 'Bebas Neue', sans-serif);
+  font-size: 1.8rem;
+  color: #c9a200;
+  line-height: 1;
+}
+
+.hp-modal-title {
+  font-family: var(--font-accent, 'Playfair Display', serif);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #e4dccf;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.hp-modal-body {
+  color: #b0a898;
+}
+
+.hp-modal-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.hp-modal-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 1.05rem;
+  line-height: 1.5;
+  font-family: var(--font-primary);
+}
+
+.hp-modal-bullet {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #c9a200;
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .hp-cards-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 480px) {
+  .hp-cards-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .hp-card { padding: 14px 12px 12px; }
+  .hp-cards-label { white-space: normal; text-align: center; }
+}

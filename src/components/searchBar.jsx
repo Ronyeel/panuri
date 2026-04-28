@@ -1,7 +1,7 @@
 // SearchBar.jsx
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useSearch } from '../API/useSearch'
+import { useSearch } from '../API/useLocalSearch'
 import './searchBar.css'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -40,13 +40,20 @@ function ResultItem({ item, isActive, onMouseEnter, onClick }) {
       role="option"
       aria-selected={isActive}
     >
-      <span className="search-result-title">{item.title}</span>
+      <div className="search-result-main">
+        {/* Title — plain text */}
+        <span className="search-result-title">{item.title}</span>
 
-      {item.subtitle && (
-        <span style={{ fontSize: '0.7rem', color: '#888' }}>
-          {item.subtitle}
-        </span>
-      )}
+        {/* Section / subtitle tag */}
+        {item.subtitle && (
+          <span className="search-result-section">{item.subtitle}</span>
+        )}
+
+        {/* Snippet preview — plain text */}
+        {item.snippet && (
+          <span className="search-result-snippet">{item.snippet}</span>
+        )}
+      </div>
 
       <span className="search-result-category">{item.category}</span>
     </li>
@@ -139,7 +146,7 @@ function useSearchBar(onClose) {
   const navigate = useNavigate()
   const { results, loading, error } = useSearch(query)
 
-  const showDropdown = focused && query.trim().length > 0
+  const showDropdown = focused && query.trim().length >= 1
 
   const navigateTo = (path) => {
     navigate(path)
@@ -157,7 +164,6 @@ function useSearchBar(onClose) {
     if (activeIndex >= 0 && results[activeIndex]) {
       navigateTo(results[activeIndex].path)
     } else if (query.trim()) {
-      // Fallback: go to /mga-libro with a search query param
       navigateTo(`/mga-libro?q=${encodeURIComponent(query.trim())}`)
     }
   }
@@ -198,7 +204,7 @@ function useSearchBar(onClose) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function SearchBar({ mobileOpen: mobileOpenProp, onMobileToggle }) {
-  const isControlled  = mobileOpenProp !== undefined
+  const isControlled   = mobileOpenProp !== undefined
   const [internalOpen, setInternalOpen] = useState(false)
 
   const mobileOpen   = isControlled ? mobileOpenProp : internalOpen

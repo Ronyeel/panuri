@@ -157,7 +157,7 @@ export default function Login() {
           <div className="auth-header-center">
             <h1 className="auth-heading">Mag - Login</h1>
             <p className="auth-greeting">
-              Mabuhay! Inaanyayahan kaya na muling pumasok sa inyong account
+              Mabuhay! Inaanyayahan ka na muling pumasok sa inyong account
             </p>
           </div>
 

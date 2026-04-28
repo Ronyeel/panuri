@@ -23,12 +23,17 @@ const Q_TYPE_META = {
   essay:           { label: 'Sanaysay',          color: '#a78bfa', bg: 'rgba(167,139,250,0.12)', border: 'rgba(167,139,250,0.25)' },
 }
 
+const SET_TYPE_META = {
+  ...Q_TYPE_META,
+  halo:            { label: 'Halo (Mixed)',      color: '#f5b942', bg: 'rgba(245,185,66,0.12)', border: 'rgba(245,185,66,0.25)' },
+}
+
 const SUGGESTED_CATEGORIES = [
   'Kasaysayan', 'Agham', 'Matematika', 'Filipino', 'Ingles',
   'MAPEH', 'Araling Panlipunan', 'Teknolohiya', 'Panitikan', 'Edukasyon sa Pagpapakatao',
 ]
 
-const EMPTY_SET = { title: '', description: '', category: '', difficulty: 'medium' }
+const EMPTY_SET = { title: '', description: '', category: '', difficulty: 'medium', set_type: 'halo' }
 
 const EMPTY_QUESTION = {
   type: 'multiple_choice',
@@ -75,6 +80,10 @@ const DifficultyBadge = ({ difficulty }) => {
 }
 const TypeBadge = ({ type }) => {
   const m = Q_TYPE_META[type] ?? Q_TYPE_META.multiple_choice
+  return <Badge color={m.color} bg={m.bg} border={m.border}>{m.label}</Badge>
+}
+const SetTypeBadge = ({ type }) => {
+  const m = SET_TYPE_META[type] ?? SET_TYPE_META.halo
   return <Badge color={m.color} bg={m.bg} border={m.border}>{m.label}</Badge>
 }
 const CategoryBadge = ({ category }) =>
@@ -269,7 +278,7 @@ export default function AdminQuizSets() {
 
   useEffect(() => {
     fetchSets()
-    const channel = supabase.channel('quiz_admin')
+    const channel = supabase.channel(`quiz_admin_${Date.now()}_${Math.random()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_sets' }, fetchSets)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_questions' }, () => {
         fetchSets()
@@ -291,7 +300,7 @@ export default function AdminQuizSets() {
 
   const openEditSet = (s, e) => {
     e?.stopPropagation()
-    setSetForm({ title: s.title, description: s.description ?? '', category: s.category ?? '', difficulty: s.difficulty ?? 'medium' })
+    setSetForm({ title: s.title, description: s.description ?? '', category: s.category ?? '', difficulty: s.difficulty ?? 'medium', set_type: s.set_type ?? 'halo' })
     setCatInput(s.category ?? '')
     setEditingSet(s.id); setSetError('')
     setSetModal(true)
@@ -308,6 +317,7 @@ export default function AdminQuizSets() {
       description: setForm.description.trim() || null,
       category:    setForm.category.trim()    || null,
       difficulty:  setForm.difficulty,
+      set_type:    setForm.set_type,
       updated_at:  new Date().toISOString(),
     }
     try {
@@ -540,8 +550,9 @@ export default function AdminQuizSets() {
                             </div>
                           </div>
                           {s.description && <p className="qz-set-desc">{s.description}</p>}
-                          <div className="qz-set-card-footer">
+                          <div className="qz-set-card-footer" style={{ flexWrap: 'wrap', gap: '8px' }}>
                             <DifficultyBadge difficulty={s.difficulty} />
+                            <SetTypeBadge type={s.set_type} />
                             <span className="qz-set-q-count">
                               <HelpIcon />
                               {qCount} tanong
@@ -678,6 +689,23 @@ export default function AdminQuizSets() {
                         className={`qz-diff-option${setForm.difficulty === val ? ' qz-diff-option--active' : ''}`}
                         style={{ '--dc': meta.color, '--db': meta.bg, '--dbd': meta.border }}
                         onClick={() => setSetForm(f => ({ ...f, difficulty: val }))}
+                      >
+                        {meta.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Overall Type */}
+                <div className="qz-form-group qz-form-group--full">
+                  <label>Pangkalahatang Uri ng Tanong</label>
+                  <div className="qz-type-tabs">
+                    {Object.entries(SET_TYPE_META).map(([val, meta]) => (
+                      <button
+                        key={val} type="button"
+                        className={`qz-type-tab${setForm.set_type === val ? ' qz-type-tab--active' : ''}`}
+                        style={setForm.set_type === val ? { '--tab-color': meta.color, '--tab-bg': meta.bg, '--tab-border': meta.border } : {}}
+                        onClick={() => setSetForm(f => ({ ...f, set_type: val }))}
                       >
                         {meta.label}
                       </button>

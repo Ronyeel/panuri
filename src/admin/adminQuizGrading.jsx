@@ -10,7 +10,7 @@
 //  - navigator.setAppBadge() for PWA/home-screen installs
 //  - Tab badge now always visible regardless of active tab
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../API/supabase'
 import { MdGrading, MdPeople, MdSearch, MdClose, MdExpandMore, MdAssignment, MdCheckCircle, MdPendingActions, MdAutorenew, MdDoneAll, MdAssessment } from 'react-icons/md'
 import './adminQuiz.css'
@@ -220,13 +220,29 @@ export default function AdminQuizGrading() {
     setLoading(false)
   }, [gradingTab])
 
-  useEffect(() => { 
-    fetchAttempts() 
-    const channel = supabase.channel('grading_admin_attempts')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts' }, fetchAttempts)
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [fetchAttempts])
+  // ── Realtime Refs ─────────────────────────────────────────────────────────
+
+  const mountedRef = useRef(true)
+  const channelRef = useRef(null)
+  const retryTimerRef = useRef(null)
+
+  const activeAttemptRef = useRef(activeAttempt)
+  useEffect(() => { activeAttemptRef.current = activeAttempt }, [activeAttempt])
+
+  const mainTabRef = useRef(mainTab)
+  useEffect(() => { mainTabRef.current = mainTab }, [mainTab])
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      clearTimeout(retryTimerRef.current)
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+        channelRef.current = null
+      }
+    }
+  }, [])
 
   // ── Fetch all attempts (responses tab) ────────────────────────────────────
 
@@ -263,25 +279,46 @@ export default function AdminQuizGrading() {
     setLoadingR(false)
   }, [])
 
-  useEffect(() => {
-    if (activeAttempt) fetchResponses(activeAttempt)
-    const channel = supabase.channel(`grading_admin_responses_${activeAttempt?.id || 'none'}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_responses', filter: activeAttempt ? `attempt_id=eq.${activeAttempt.id}` : undefined }, () => {
-        if (activeAttempt) fetchResponses(activeAttempt)
-      })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [activeAttempt?.id, activeAttempt, fetchResponses])
+  const subscribe = useCallback(() => {
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current)
+      channelRef.current = null
+    }
 
-  useEffect(() => {
-    if (mainTab === 'responses') { fetchAllAttempts(); fetchAllSets() }
-    const channel = supabase.channel('grading_admin_all_attempts')
+    const channel = supabase.channel(`grading_admin_sync_${Date.now()}_${Math.random()}`, {
+      config: { presence: { key: 'grading-admin' } }
+    })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts' }, () => {
-        if (mainTab === 'responses') fetchAllAttempts()
+        fetchAttempts()
+        if (mainTabRef.current === 'responses') fetchAllAttempts()
       })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [mainTab, fetchAllAttempts, fetchAllSets])
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_responses' }, (payload) => {
+        const attemptId = payload.new?.attempt_id || payload.old?.attempt_id
+        if (activeAttemptRef.current?.id === attemptId) {
+          fetchResponses(activeAttemptRef.current)
+        }
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          fetchAttempts()
+          if (mainTabRef.current === 'responses') fetchAllAttempts()
+          if (activeAttemptRef.current) fetchResponses(activeAttemptRef.current)
+        }
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          clearTimeout(retryTimerRef.current)
+          retryTimerRef.current = setTimeout(() => {
+            if (mountedRef.current) subscribe()
+          }, 3000)
+        }
+      })
+
+    channelRef.current = channel
+  }, [fetchAttempts, fetchAllAttempts, fetchResponses])
+
+  useEffect(() => { subscribe() }, [subscribe])
+  useEffect(() => { fetchAttempts() }, [fetchAttempts])
+  useEffect(() => { if (mainTab === 'responses') { fetchAllAttempts(); fetchAllSets() } }, [mainTab, fetchAllAttempts, fetchAllSets])
+  useEffect(() => { if (activeAttempt) fetchResponses(activeAttempt) }, [activeAttempt, fetchResponses])
 
   // ── App icon / browser-tab badge ─────────────────────────────────────────
   // pendingCount is derived below, but we need it early for the effect dep.

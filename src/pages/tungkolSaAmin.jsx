@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import './tungkolSaAmin.css'
 
 const METO_CARDS = [
-  { title: 'Talahanungan', icon: '📋' },
+  { title: 'Talatanungan', icon: '📋' },
   { title: 'Pagsusuri', icon: '🔍' },
   { title: 'Pagwawangis\nng PANURI', icon: '📊' },
 ]
@@ -57,12 +57,12 @@ export default function TungkolSaAmin() {
       <div className="tsa-container">
 
         {/* ── Hero Title ── */}
-        <header className="tsa-hero">
+        <header className="tsa-hero" id="tsa-hero">
           <h1 className="tsa-hero-title">Tungkol Sa Amin</h1>
         </header>
 
         {/* ── INTRODUKSYON ── */}
-        <section className="tsa-section">
+        <section className="tsa-section" id="tsa-introduksyon">
           <div className="tsa-section-tag tsa-tag--red">INTRODUKSYON</div>
           <div className="tsa-intro-grid">
             <div className="tsa-intro-body">
@@ -75,7 +75,7 @@ export default function TungkolSaAmin() {
         </section>
 
         {/* ── LAYUNIN ── */}
-        <section className="tsa-section tsa-section--center">
+        <section className="tsa-section tsa-section--center" id="tsa-layunin">
           <div className="tsa-section-tag tsa-tag--white">LAYUNIN</div>
           <div className="tsa-layunin-card">
             <p>
@@ -85,7 +85,7 @@ export default function TungkolSaAmin() {
         </section>
 
         {/* ── METODOLOHIYA ── */}
-        <section className="tsa-section">
+        <section className="tsa-section" id="tsa-metodolohiya">
           <div className="tsa-section-tag tsa-tag--white">METODOLOHIYA</div>
           <div className="tsa-meto-grid">
             {METO_CARDS.map((m, i) => (
@@ -98,7 +98,7 @@ export default function TungkolSaAmin() {
         </section>
 
         {/* ── Mga Natuklasan ── */}
-        <section className="tsa-section tsa-section--center">
+        <section className="tsa-section tsa-section--center" id="tsa-natuklasan">
           <div className="tsa-lava-box">
             <h2 className="tsa-lava-title">Mga Natuklasan</h2>
             <div className="tsa-glass-card">
@@ -110,7 +110,7 @@ export default function TungkolSaAmin() {
         </section>
 
         {/* ── TUGON: PANURI ── */}
-        <section className="tsa-section">
+        <section className="tsa-section" id="tsa-tugon">
           <div className="tsa-section-tag tsa-tag--red">TUGON: PANURI</div>
           <div className="tsa-tugon-grid">
             <div className="tsa-tugon-body">
@@ -127,7 +127,7 @@ export default function TungkolSaAmin() {
         </section>
 
         {/* ── TEAM & QUOTE ── */}
-        <section className="tsa-section">
+        <section className="tsa-section" id="tsa-team">
           <div className="tsa-team-grid">
             {TEAM_MEMBERS.map((member) => (
               <div className="tsa-team-card" key={member.name}>
@@ -143,7 +143,14 @@ export default function TungkolSaAmin() {
                 <div className="tsa-team-info">
                   <h4 className="tsa-team-name">{member.name}</h4>
                   <p className="tsa-team-role">{member.role}</p>
-                  {member.email && <p className="tsa-team-email">{member.email}</p>}
+                  {member.email && (
+                    <a
+                      href={`mailto:${member.email}`}
+                      className="tsa-team-email"
+                    >
+                      {member.email}
+                    </a>
+                  )}
                 </div>
               </div>
             ))}

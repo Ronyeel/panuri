@@ -1,5 +1,5 @@
 // AdminLayout.jsx
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, Link, Outlet } from 'react-router-dom'
 import { signOut } from 'firebase/auth'
 import { auth } from '../API/firebase'
@@ -44,21 +44,61 @@ export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false)
   const [pendingCount, setPendingCount] = useState(0)
 
-  useEffect(() => {
-    const fetchPending = async () => {
-      const { count } = await supabase
-        .from('quiz_attempts')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending_review')
-      if (count !== null) setPendingCount(count)
-    }
-    fetchPending()
+  // Realtime refs
+  const mountedRef = useRef(true)
+  const channelRef = useRef(null)
+  const retryTimerRef = useRef(null)
 
-    const channel = supabase.channel('pending_grading_layout')
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      clearTimeout(retryTimerRef.current)
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+        channelRef.current = null
+      }
+    }
+  }, [])
+
+  const fetchPending = async () => {
+    const { count } = await supabase
+      .from('quiz_attempts')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending_review')
+    if (count !== null) setPendingCount(count)
+  }
+
+  const subscribe = () => {
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current)
+      channelRef.current = null
+    }
+
+    const channel = supabase.channel(`pending_grading_layout_${Date.now()}_${Math.random()}`, {
+      config: { presence: { key: 'admin-layout' } }
+    })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts' }, fetchPending)
-      .subscribe()
-      
-    return () => { supabase.removeChannel(channel) }
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          fetchPending()
+        }
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          fetchPending()
+          clearTimeout(retryTimerRef.current)
+          retryTimerRef.current = setTimeout(() => {
+            if (mountedRef.current) subscribe()
+          }, 3000)
+        }
+      })
+
+    channelRef.current = channel
+  }
+
+  useEffect(() => {
+    fetchPending()
+    subscribe()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleLogout = async () => {
@@ -98,10 +138,15 @@ export default function AdminLayout() {
                 className={`ep-nav-item ${active ? 'ep-nav-item--active' : ''}`}
                 title={collapsed ? item.label : undefined}
               >
-                <span className="ep-nav-icon">{item.icon}</span>
-                <span className="ep-nav-label">
+                <span className="ep-nav-icon" style={{ position: 'relative' }}>
+                  {item.icon}
+                  {item.path === '/admin/quiz/grading' && pendingCount > 0 && collapsed && (
+                    <span className="ep-nav-dot" />
+                  )}
+                </span>
+                <span className="ep-nav-label" style={{ display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
                   {item.label}
-                  {item.label === 'Grading' && pendingCount > 0 && !collapsed && (
+                  {item.path === '/admin/quiz/grading' && pendingCount > 0 && !collapsed && (
                     <span className="ep-nav-badge">{pendingCount}</span>
                   )}
                 </span>

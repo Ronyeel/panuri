@@ -7,6 +7,7 @@ import { auth, db } from './API/firebase';
 import NavBar            from './components/NavBar';
 import Footer            from './components/Footer';
 import Sidebar           from './components/SideBar';
+import SplashScreen      from './components/splashScreen';
 import AdminToggleButton from './admin/AdminToggleButton';
 import AdminRoute        from './admin/adminRoute';
 import AdminLayout       from './admin/adminLayout';
@@ -15,17 +16,15 @@ import AdminBooks        from './admin/adminBooks';
 import AdminExcerpts     from './admin/adminExcerpts';
 import { UIProvider }    from './context/UIContext';
 
-// ── New quiz admin pages (sets + grading) ─────────────────────
 import AdminQuizSets    from './admin/adminQuizSets';
 import AdminQuizGrading from './admin/adminQuizGrading';
 
-// ── Player-facing pages ───────────────────────────────────────
 import HomePage             from './pages/HomePage';
 import MgaLibro             from './pages/mgaLibro';
 import BookPage             from './pages/bookPage';
 import ExcerptsPage         from './pages/Excerpt';
 import Pagsusuri            from './pages/Pagsusuri';
-import Pagsuslit            from './pages/pagsusulit';   // new multi-type player quiz
+import Pagsuslit            from './pages/pagsusulit';
 import Login                from './pages/login';
 import Registration         from './pages/register';
 import ProfilePage          from './pages/profile';
@@ -34,14 +33,27 @@ import TeoryangPampanitikan from './pages/teoryangPampanitikan';
 import BagongPamantayan     from './pages/bagongPamantayan';
 import TungkolSaAmin        from './pages/tungkolSaAmin';
 import ForgotPassword       from './pages/forgotPassword';
+import ResetPassword        from './pages/resetPassword';
 
 // ─── Constants ────────────────────────────────────────────────
-const CHROME_HIDDEN_ROUTES = new Set(['/login', '/register', '/forgot-password', '/magsuri']);
+const CHROME_HIDDEN_ROUTES = new Set([
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/reset-password',
+  '/magsuri',
+]);
 
 const PROTECTED_ROUTES = new Set([
-  '/', '/mga-libro', '/excerpts', '/pagsusuri',
-  '/pagsusulit', '/profile', '/magsuri',
-  '/bagong-pamantayan', '/tungkol-sa'
+  '/',
+  '/mga-libro',
+  '/excerpts',
+  '/pagsusuri',
+  '/pagsusulit',
+  '/profile',
+  '/magsuri',
+  '/bagong-pamantayan',
+  '/tungkol-sa',
 ]);
 
 const Blank = () => <div style={{ minHeight: '100vh', background: '#0d0d0d' }} />;
@@ -156,6 +168,10 @@ function Layout({ user, authReady }) {
                 </RedirectIfAuthed>
               }
             />
+            <Route
+              path="/reset-password"
+              element={<ResetPassword />}
+            />
 
             {/* ── Admin ──────────────────────────────────────── */}
             <Route
@@ -166,20 +182,12 @@ function Layout({ user, authReady }) {
                 </AdminRoute>
               }
             >
-              {/* Dashboard */}
-              <Route index element={<AdminDashboard />} />
-
-              {/* Content management */}
-              <Route path="books"   element={<AdminBooks />} />
-              <Route path="excerpts" element={<AdminExcerpts />} />
-
-              {/* Quiz management — /admin/quiz   → sets & questions editor  */}
-              {/*                   /admin/quiz/grading → essay grading panel */}
-              <Route path="quiz"         element={<AdminQuizSets />} />
-              <Route path="quiz/grading" element={<AdminQuizGrading />} />
-
-              {/* Catch-all inside admin */}
-              <Route path="*" element={<Navigate to="/admin" replace />} />
+              <Route index                element={<AdminDashboard />} />
+              <Route path="books"         element={<AdminBooks />} />
+              <Route path="excerpts"      element={<AdminExcerpts />} />
+              <Route path="quiz"          element={<AdminQuizSets />} />
+              <Route path="quiz/grading"  element={<AdminQuizGrading />} />
+              <Route path="*"             element={<Navigate to="/admin" replace />} />
             </Route>
 
             {/* ── Protected (requires login) ──────────────────── */}
@@ -188,16 +196,16 @@ function Layout({ user, authReady }) {
                 path: '/',
                 element: <HomePage isLoggedIn={isLoggedIn} username={username} />,
               },
-              { path: '/mga-libro',  element: <MgaLibro /> },
-              { path: '/libro/:id',  element: <BookPage /> },
-              { path: '/excerpts',   element: <ExcerptsPage /> },
-              { path: '/pagsusuri',  element: <Pagsusuri /> },
-              { path: '/pagsusulit', element: <Pagsuslit /> },   // ← new player quiz
-              { path: '/magsuri',    element: <MagsuriTayo /> },
-              { path: '/teorya',     element: <TeoryangPampanitikan /> },
-              { path: '/profile',    element: <ProfilePage /> },
-              { path: '/bagong-pamantayan', element: <BagongPamantayan /> },
-              { path: '/tungkol-sa', element: <TungkolSaAmin /> },
+              { path: '/mga-libro',         element: <MgaLibro /> },
+              { path: '/libro/:id',          element: <BookPage /> },
+              { path: '/excerpts',           element: <ExcerptsPage /> },
+              { path: '/pagsusuri',          element: <Pagsusuri /> },
+              { path: '/pagsusulit',         element: <Pagsuslit /> },
+              { path: '/magsuri',            element: <MagsuriTayo /> },
+              { path: '/teorya',             element: <TeoryangPampanitikan /> },
+              { path: '/profile',            element: <ProfilePage /> },
+              { path: '/bagong-pamantayan',  element: <BagongPamantayan /> },
+              { path: '/tungkol-sa',         element: <TungkolSaAmin /> },
             ].map(({ path, element }) => (
               <Route
                 key={path}
@@ -241,10 +249,45 @@ function ScrollToTop() {
   return null;
 }
 
+// ─── Hash Navigation ──────────────────────────────────────────
+// After navigating to a path with a #hash, retry until the target
+// element renders (needed for lazy/async content), then smooth-scroll.
+function ScrollToHash() {
+  const { pathname, hash } = useLocation();
+
+  useEffect(() => {
+    if (!hash) return;
+
+    const id = hash.replace('#', '');
+    let attempts = 0;
+    const MAX = 15;
+
+    const timer = setInterval(() => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        clearInterval(timer);
+      }
+      if (++attempts >= MAX) clearInterval(timer);
+    }, 100);
+
+    return () => clearInterval(timer);
+  }, [pathname, hash]);
+
+  return null;
+}
+
 // ─── Root ─────────────────────────────────────────────────────
 export default function App() {
-  const [user,      setUser]      = useState(null);
-  const [authReady, setAuthReady] = useState(false);
+  const [user,       setUser]       = useState(null);
+  const [authReady,  setAuthReady]  = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
+
+  // Hide splash after 2.5s (2s display + 0.5s fade)
+  useEffect(() => {
+    const timer = setTimeout(() => setShowSplash(false), 2500);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
@@ -256,12 +299,11 @@ export default function App() {
 
   return (
     <UIProvider>
+      {showSplash && <SplashScreen />}
       <BrowserRouter>
         <ScrollToTop />
-        <Layout
-          user={user}
-          authReady={authReady}
-        />
+        <ScrollToHash />
+        <Layout user={user} authReady={authReady} />
       </BrowserRouter>
     </UIProvider>
   );

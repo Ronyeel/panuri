@@ -154,13 +154,13 @@ export default function AdminExcerpts() {
       }
 
       if (editing) {
-        const { error } = await supabase.from('excerpts').update(payload).eq('id', editing)
+        const { error } = await supabase.from('excerpt').update(payload).eq('id', editing)
         if (error) throw error
-        notify('Matagumpay na na-update ang sipi.', 'success')
+        notify('Matagumpay na na-update ang excerpts.', 'success')
       } else {
         const { error } = await supabase.from('excerpts').insert([payload])
         if (error) throw error
-        notify('Matagumpay na naidagdag ang sipi.', 'success')
+        notify('Matagumpay na naidagdag ang excerpt.', 'success')
       }
       await fetchItems()
       closeModal()
@@ -231,12 +231,12 @@ export default function AdminExcerpts() {
       {/* Table */}
       <div className="ep-card">
         <div className="ep-card-header">
-          <h2 className="ep-card-title">Lahat ng Sipi</h2>
+          <h2 className="ep-card-title">Lahat ng Excerpts</h2>
           <div className="ep-search-wrap">
             <MdSearch size={16} className="ep-search-icon" />
             <input
               className="ep-search"
-              placeholder="Hanapin ang sipi…"
+              placeholder="Hanapin ang excerpt…"
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -260,7 +260,7 @@ export default function AdminExcerpts() {
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={6} className="ep-empty">Walang nahanap na sipi.</td></tr>
+                  <tr><td colSpan={6} className="ep-empty">Walang nahanap na excerpt.</td></tr>
                 ) : filtered.map(item => (
                   <tr key={item.id} className="ep-table-row">
                     <td>
@@ -347,7 +347,7 @@ export default function AdminExcerpts() {
         <div className="ep-modal-backdrop" onClick={e => { if (e.target === e.currentTarget) closeModal() }}>
           <div className="ep-modal">
             <div className="ep-modal-header">
-              <h2>{editing ? 'I-edit ang Sipi' : 'Bagong Sipi'}</h2>
+              <h2>{editing ? 'I-edit ang Excerpt' : 'Bagong Excerpt'}</h2>
               <button className="ep-modal-close" onClick={closeModal}>✕</button>
             </div>
             <div className="ep-modal-body">
@@ -521,7 +521,7 @@ export default function AdminExcerpts() {
                 </div>
 
                 <div className="ep-form-group ep-form-group--full">
-                  <label>Sipi (Excerpt)</label>
+                  <label>Excerpts</label>
                   <textarea value={form.excerpt} className="ep-input ep-textarea"
                     placeholder="I-paste ang sipi dito…" rows={5}
                     onChange={e => setForm(f => ({ ...f, excerpt: e.target.value }))} />

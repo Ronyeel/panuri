@@ -85,7 +85,7 @@
   padding: 20px;
 }
 .auth-hero-mascot {
-  width: clamp(350px, 45vw, 600px);
+  width: clamp(220px, 28vw, 360px);
   height: auto;
   filter: drop-shadow(0 20px 40px rgba(0,0,0,0.7));
   z-index: 10;

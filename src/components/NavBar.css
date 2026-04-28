@@ -364,6 +364,8 @@
 .navbar-burger {
   display: none;
   flex-direction: column;
+  justify-content: center;
+  align-items: center;
   gap: 5px;
   background: none;
   border: 1px solid var(--border-sub);
